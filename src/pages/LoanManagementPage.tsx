@@ -26,6 +26,7 @@ import { formatNumber, formatPercent, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
 import { EmptyState } from '../components/EmptyState'
 import { ReinvestmentSimulator } from '../components/ReinvestmentSimulator'
+import { StressTestPanel } from '../components/StressTestPanel'
 
 interface LoanManagementPageProps {
   stocks: StockAsset[]
@@ -159,7 +160,7 @@ function loanDraftFrom(loan: Loan, collaterals: Collateral[]): LoanDraft {
 }
 
 export function LoanManagementPage({ stocks, loans, collaterals, settings, summary, displayMode, onSaveLoan, onDeleteLoan }: LoanManagementPageProps) {
-  const [activeView, setActiveView] = useState<'simulation' | 'loans'>('simulation')
+  const [activeView, setActiveView] = useState<'simulation' | 'stress' | 'loans'>('simulation')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null)
   const [draft, setDraft] = useState<LoanDraft>(createDefaultLoanDraft)
@@ -260,21 +261,22 @@ export function LoanManagementPage({ stocks, loans, collaterals, settings, summa
     <div className="page-container loan-page">
       <section className="page-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'simulation' ? '投資模擬 / V0.3' : '質押風控 / V0.2'}</div>
-          <h1>{activeView === 'simulation' ? <>借款先試算，<span>再決定要不要放大。</span></> : <>把槓桿，<span>放在可控範圍內。</span></>}</h1>
-          <p>{activeView === 'simulation' ? '把質押借款投入股票，先比較操作前後的資產、負債、槓桿與現金流。' : '記錄借款餘額、利息與擔保品，先看懂維持率，再決定是否擴大投資。'}</p>
+          <div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'simulation' ? '投資模擬 / V0.3' : activeView === 'stress' ? '市場壓力測試 / V0.4' : '質押風控 / V0.2'}</div>
+          <h1>{activeView === 'simulation' ? <>借款先試算，<span>再決定要不要放大。</span></> : activeView === 'stress' ? <>先問最壞情境，<span>再決定槓桿上限。</span></> : <>把槓桿，<span>放在可控範圍內。</span></>}</h1>
+          <p>{activeView === 'simulation' ? '把質押借款投入股票，先比較操作前後的資產、負債、槓桿與現金流。' : activeView === 'stress' ? '把市場跌幅套入目前資產，先看懂維持率與淨資產的風險距離。' : '記錄借款餘額、利息與擔保品，先看懂維持率，再決定是否擴大投資。'}</p>
         </div>
         <div className="heading-actions">
           <span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span>
           <div className="segmented-control page-view-switch" role="tablist" aria-label="質押功能">
             <button type="button" role="tab" aria-selected={activeView === 'simulation'} className={activeView === 'simulation' ? 'is-active' : ''} onClick={() => { setActiveView('simulation'); setModalOpen(false) }}>再投入模擬</button>
+            <button type="button" role="tab" aria-selected={activeView === 'stress'} className={activeView === 'stress' ? 'is-active' : ''} onClick={() => { setActiveView('stress'); setModalOpen(false) }}>壓力測試</button>
             <button type="button" role="tab" aria-selected={activeView === 'loans'} className={activeView === 'loans' ? 'is-active' : ''} onClick={() => setActiveView('loans')}>借款管理</button>
           </div>
           {activeView === 'loans' && <button type="button" className="button button-primary" onClick={openNewLoan}><Plus size={17} />新增質押借款</button>}
         </div>
       </section>
 
-      {activeView === 'simulation' ? <ReinvestmentSimulator stocks={stocks} settings={settings} summary={summary} displayMode={displayMode} /> : <>
+      {activeView === 'simulation' ? <ReinvestmentSimulator stocks={stocks} settings={settings} summary={summary} displayMode={displayMode} /> : activeView === 'stress' ? <StressTestPanel stocks={stocks} loans={loans} collaterals={collaterals} settings={settings} summary={summary} displayMode={displayMode} /> : <>
       <section className={`risk-overview-card card ${statusClass(overview.status)}`}>
         <div className="risk-overview-top">
           <div>

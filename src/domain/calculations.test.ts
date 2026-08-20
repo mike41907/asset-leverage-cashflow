@@ -100,6 +100,18 @@ describe('portfolio calculations', () => {
     expect(calculateMarginCallDrop(3_000_000, 1_500_000, 160)).toBeCloseTo(20, 5)
   })
 
+  it('handles a threshold that is already crossed and caps extreme stress inputs', () => {
+    expect(calculateMarginCallDrop(1_000_000, 1_000_000, 160)).toBe(0)
+    expect(calculateStressTest({
+      stockMarketValueTwd: 5_000_000,
+      collateralValueTwd: 3_000_000,
+      totalAssetsTwd: 6_000_000,
+      totalLiabilitiesTwd: 1_500_000,
+      loanBalanceTwd: 1_500_000,
+      dropPercent: 150,
+    })).toMatchObject({ dropPercent: 100, stockMarketValueTwd: 0, collateralValueTwd: 0 })
+  })
+
   it('compares a borrowed reinvestment before and after without changing initial net worth', () => {
     const result = calculateReinvestmentSimulation({
       base: {
