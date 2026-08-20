@@ -45,6 +45,49 @@ export interface StressTestResult {
   maintenanceRatioPercent: number
 }
 
+export interface SimulationSnapshot {
+  stockMarketValueTwd: number
+  cashValueTwd: number
+  totalAssetsTwd: number
+  totalLiabilitiesTwd: number
+  netWorthTwd: number
+  annualEstimatedDividendTwd: number
+  monthlyCashFlowTwd: number
+  debtRatioPercent: number
+  leverageRatio: number
+}
+
+export interface ReinvestmentSimulationInput {
+  base: SimulationSnapshot
+  loanAmountTwd: number
+  annualInterestRatePercent: number
+  targetStock: StockAsset | null
+  investmentAllocationPercent: number
+  collateralValueTwd: number
+  warningRatioPercent: number
+  marginCallRatioPercent: number
+}
+
+export interface ReinvestmentSimulationResult {
+  loanAmountTwd: number
+  annualInterestTwd: number
+  monthlyInterestTwd: number
+  investmentAllocationPercent: number
+  plannedInvestmentAmountTwd: number
+  sharesPurchased: number
+  newInvestmentMarketValueTwd: number
+  uninvestedBorrowedCashTwd: number
+  annualDividendTwd: number
+  monthlyDividendTwd: number
+  monthlyNetCashFlowTwd: number
+  maintenanceRatioPercent: number
+  maintenanceStatus: MaintenanceStatus
+  distanceToWarningPoints: number | null
+  distanceToMarginCallPoints: number | null
+  before: SimulationSnapshot
+  after: SimulationSnapshot
+}
+
 export interface DividendTargetResult {
   monthlyGrossTargetTwd: number
   annualTargetTwd: number
@@ -240,6 +283,72 @@ export function calculateMarginCallDrop(
 
   const requiredCollateral = loan * (threshold / 100)
   return requiredCollateral >= collateral ? 0 : Math.min(100, Math.max(0, (1 - requiredCollateral / collateral) * 100))
+}
+
+function calculateDebtRatioPercent(totalAssetsTwd: number, totalLiabilitiesTwd: number): number {
+  return totalAssetsTwd > 0 ? (finitePositive(totalLiabilitiesTwd) / totalAssetsTwd) * 100 : 0
+}
+
+function createSimulationSnapshot(input: Omit<SimulationSnapshot, 'netWorthTwd' | 'debtRatioPercent' | 'leverageRatio'>): SimulationSnapshot {
+  const netWorthTwd = calculateNetWorth(input.totalAssetsTwd, input.totalLiabilitiesTwd)
+  return {
+    ...input,
+    netWorthTwd,
+    debtRatioPercent: calculateDebtRatioPercent(input.totalAssetsTwd, input.totalLiabilitiesTwd),
+    leverageRatio: calculateLeverageRatio(input.totalAssetsTwd, netWorthTwd),
+  }
+}
+
+export function calculateReinvestmentSimulation(input: ReinvestmentSimulationInput): ReinvestmentSimulationResult {
+  const loanAmountTwd = finitePositive(input.loanAmountTwd)
+  const annualInterestTwd = calculateLoanInterest(loanAmountTwd, input.annualInterestRatePercent)
+  const monthlyInterestTwd = annualInterestTwd / 12
+  const investmentAllocationPercent = Math.min(100, Math.max(0, finitePositive(input.investmentAllocationPercent)))
+  const plannedInvestmentAmountTwd = loanAmountTwd * (investmentAllocationPercent / 100)
+  const exchangeRateToTwd = input.targetStock ? finitePositive(input.targetStock.exchangeRateToTwd || 1) : 1
+  const targetPriceTwd = input.targetStock ? finitePositive(input.targetStock.currentPrice) * exchangeRateToTwd : 0
+  const sharesPurchased = targetPriceTwd > 0 ? Math.floor(plannedInvestmentAmountTwd / targetPriceTwd) : 0
+  const newInvestmentMarketValueTwd = sharesPurchased * targetPriceTwd
+  const uninvestedBorrowedCashTwd = Math.max(0, loanAmountTwd - newInvestmentMarketValueTwd)
+  const annualDividendTwd = input.targetStock && sharesPurchased > 0
+    ? calculateAnnualDividendTwd({ ...input.targetStock, shares: sharesPurchased })
+    : 0
+  const monthlyDividendTwd = annualDividendTwd / 12
+  const maintenanceOverview = calculateMaintenanceOverview(
+    input.collateralValueTwd,
+    loanAmountTwd,
+    input.warningRatioPercent,
+    input.marginCallRatioPercent,
+  )
+  const before = input.base
+  const after = createSimulationSnapshot({
+    stockMarketValueTwd: before.stockMarketValueTwd + newInvestmentMarketValueTwd,
+    cashValueTwd: before.cashValueTwd + uninvestedBorrowedCashTwd,
+    totalAssetsTwd: before.totalAssetsTwd + loanAmountTwd,
+    totalLiabilitiesTwd: before.totalLiabilitiesTwd + loanAmountTwd,
+    annualEstimatedDividendTwd: before.annualEstimatedDividendTwd + annualDividendTwd,
+    monthlyCashFlowTwd: before.monthlyCashFlowTwd + monthlyDividendTwd - monthlyInterestTwd,
+  })
+
+  return {
+    loanAmountTwd,
+    annualInterestTwd,
+    monthlyInterestTwd,
+    investmentAllocationPercent,
+    plannedInvestmentAmountTwd,
+    sharesPurchased,
+    newInvestmentMarketValueTwd,
+    uninvestedBorrowedCashTwd,
+    annualDividendTwd,
+    monthlyDividendTwd,
+    monthlyNetCashFlowTwd: after.monthlyCashFlowTwd,
+    maintenanceRatioPercent: maintenanceOverview.ratioPercent,
+    maintenanceStatus: maintenanceOverview.status,
+    distanceToWarningPoints: maintenanceOverview.distanceToWarningPoints,
+    distanceToMarginCallPoints: maintenanceOverview.distanceToMarginCallPoints,
+    before,
+    after,
+  }
 }
 
 export function calculatePortfolioSummary(

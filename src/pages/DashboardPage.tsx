@@ -46,7 +46,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.2</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.3</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -214,13 +214,13 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V0.2 完成項目</div>
-              <h2>你的第一層槓桿風控已建立。</h2>
-              <p>現在可以記錄借款與擔保品，先用維持率確認風險，再進入後續現金流規劃。</p>
+              <div className="section-kicker">V0.3 完成項目</div>
+              <h2>你的借款方案，可以先試算再執行。</h2>
+              <p>現在可以把借款投入股票，先比較操作前後的資產、負債、槓桿與現金流。</p>
               <div className="next-step-list">
                 <div><span className="check-icon">✓</span>總資產與淨資產分離計算</div>
                 <div><span className="check-icon">✓</span>資料保存在本機 IndexedDB</div>
-                <div><span className="check-icon">✓</span>借款利息與擔保品維持率預覽</div>
+                <div><span className="check-icon">✓</span>借款再投入 Before / After 試算</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

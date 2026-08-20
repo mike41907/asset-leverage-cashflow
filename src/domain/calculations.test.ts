@@ -6,6 +6,7 @@ import {
   calculateMarginCallDrop,
   calculateNetWorth,
   calculateRequiredShares,
+  calculateReinvestmentSimulation,
   calculateStressTest,
   calculateTotalAssets,
 } from './calculations'
@@ -97,5 +98,40 @@ describe('portfolio calculations', () => {
 
   it('finds the drop that reaches a warning line', () => {
     expect(calculateMarginCallDrop(3_000_000, 1_500_000, 160)).toBeCloseTo(20, 5)
+  })
+
+  it('compares a borrowed reinvestment before and after without changing initial net worth', () => {
+    const result = calculateReinvestmentSimulation({
+      base: {
+        stockMarketValueTwd: 5_000_000,
+        cashValueTwd: 1_000_000,
+        totalAssetsTwd: 6_000_000,
+        totalLiabilitiesTwd: 0,
+        netWorthTwd: 6_000_000,
+        annualEstimatedDividendTwd: 60_000,
+        monthlyCashFlowTwd: 5_000,
+        debtRatioPercent: 0,
+        leverageRatio: 1,
+      },
+      loanAmountTwd: 2_000_000,
+      annualInterestRatePercent: 3,
+      targetStock: stock({ symbol: '00878', currentPrice: 50, estimatedAnnualDividendPerShare: 2.5 }),
+      investmentAllocationPercent: 100,
+      collateralValueTwd: 5_000_000,
+      warningRatioPercent: 160,
+      marginCallRatioPercent: 120,
+    })
+
+    expect(result.sharesPurchased).toBe(40_000)
+    expect(result.newInvestmentMarketValueTwd).toBe(2_000_000)
+    expect(result.annualDividendTwd).toBe(100_000)
+    expect(result.monthlyInterestTwd).toBeCloseTo(5_000, 5)
+    expect(result.after.totalAssetsTwd).toBe(8_000_000)
+    expect(result.after.totalLiabilitiesTwd).toBe(2_000_000)
+    expect(result.after.netWorthTwd).toBe(result.before.netWorthTwd)
+    expect(result.after.debtRatioPercent).toBe(25)
+    expect(result.after.leverageRatio).toBeCloseTo(1.333333, 5)
+    expect(result.monthlyNetCashFlowTwd).toBeCloseTo(8_333.333, 2)
+    expect(result.maintenanceRatioPercent).toBe(250)
   })
 })

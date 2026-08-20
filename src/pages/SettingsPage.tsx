@@ -32,7 +32,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />系統設定</div>
           <h1>讓工具，<span>跟你的習慣一起工作。</span></h1>
-          <p>V0.2 已加入質押借款與維持率；這裡集中管理顯示與風控門檻。</p>
+          <p>V0.3 已加入借款再投入試算；這裡集中管理顯示與風控門檻。</p>
         </div>
       </section>
 
@@ -68,7 +68,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         </div>
       </section>
 
-      <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V0.2.0</span></footer>
+      <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V0.3.0</span></footer>
     </div>
   )
 }
