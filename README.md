@@ -35,6 +35,8 @@ src/
 
 需要 Node.js 20 以上。
 
+Windows 使用者可以直接雙擊專案根目錄的 `啟動APP.bat`；它會啟動本機 Vite server 並開啟瀏覽器。
+
 ```bash
 npm install
 npm run dev
