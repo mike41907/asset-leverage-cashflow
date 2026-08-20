@@ -1,4 +1,11 @@
-import type { CashAsset, CashFlowItem, Loan, StockAsset } from './models'
+import type { CashAsset, CashFlowItem, Collateral, Loan, StockAsset } from './models'
+
+export type MaintenanceStatus = 'safe' | 'warning' | 'danger' | 'unavailable'
+
+export interface CollateralSelection {
+  stockAssetId: string
+  pledgedShares: number
+}
 
 export interface PortfolioSummary {
   stockMarketValueTwd: number
@@ -12,6 +19,11 @@ export interface PortfolioSummary {
   monthlyCashFlowTwd: number
   debtRatioPercent: number
   leverageRatio: number
+  collateralValueTwd: number
+  maintenanceRatioPercent: number
+  maintenanceStatus: MaintenanceStatus
+  distanceToWarningPoints: number | null
+  distanceToMarginCallPoints: number | null
 }
 
 export interface StressTestInput {
@@ -68,6 +80,31 @@ export function calculateCashValue(cash: CashAsset): number {
   return finitePositive(cash.amount) * finitePositive(cash.exchangeRateToTwd || 1)
 }
 
+export function calculateCollateralValueTwd(collateral: Collateral, stocks: readonly StockAsset[]): number {
+  const stock = stocks.find((item) => item.id === collateral.stockAssetId)
+  if (!stock) return 0
+
+  return Math.min(finitePositive(collateral.pledgedShares), finitePositive(stock.shares)) * finitePositive(stock.currentPrice) * finitePositive(stock.exchangeRateToTwd || 1)
+}
+
+export function calculateCollateralSelectionsValueTwd(
+  selections: readonly CollateralSelection[],
+  stocks: readonly StockAsset[],
+): number {
+  return sum(selections.map((selection) => {
+    const stock = stocks.find((item) => item.id === selection.stockAssetId)
+    if (!stock) return 0
+    return Math.min(finitePositive(selection.pledgedShares), finitePositive(stock.shares)) * finitePositive(stock.currentPrice) * finitePositive(stock.exchangeRateToTwd || 1)
+  }))
+}
+
+export function calculateTotalCollateralValueTwd(
+  collaterals: readonly Collateral[],
+  stocks: readonly StockAsset[],
+): number {
+  return sum(collaterals.map((collateral) => calculateCollateralValueTwd(collateral, stocks)))
+}
+
 export function calculateAnnualDividendTwd(stock: StockAsset): number {
   const perShareDividend = finitePositive(stock.estimatedAnnualDividendPerShare)
   if (perShareDividend > 0) {
@@ -99,6 +136,36 @@ export function calculateMonthlyLoanInterest(loanBalance: number, annualInterest
 
 export function calculateMaintenanceRatio(collateralValueTwd: number, loanBalanceTwd: number): number {
   return loanBalanceTwd > 0 ? (finitePositive(collateralValueTwd) / loanBalanceTwd) * 100 : Number.POSITIVE_INFINITY
+}
+
+export function calculateMaintenanceStatus(
+  ratioPercent: number,
+  warningRatioPercent: number,
+  marginCallRatioPercent: number,
+): MaintenanceStatus {
+  if (ratioPercent === Number.POSITIVE_INFINITY || !Number.isFinite(ratioPercent)) return 'unavailable'
+  if (ratioPercent < finitePositive(marginCallRatioPercent)) return 'danger'
+  if (ratioPercent < finitePositive(warningRatioPercent)) return 'warning'
+  return 'safe'
+}
+
+export function calculateMaintenanceOverview(
+  collateralValueTwd: number,
+  loanBalanceTwd: number,
+  warningRatioPercent: number,
+  marginCallRatioPercent: number,
+) {
+  const ratioPercent = calculateMaintenanceRatio(collateralValueTwd, loanBalanceTwd)
+  const status = calculateMaintenanceStatus(ratioPercent, warningRatioPercent, marginCallRatioPercent)
+
+  return {
+    collateralValueTwd,
+    loanBalanceTwd,
+    ratioPercent,
+    status,
+    distanceToWarningPoints: status === 'unavailable' ? null : ratioPercent - warningRatioPercent,
+    distanceToMarginCallPoints: status === 'unavailable' ? null : ratioPercent - marginCallRatioPercent,
+  }
 }
 
 export function calculateLeverageRatio(totalAssetsTwd: number, netWorthTwd: number): number {
@@ -180,6 +247,9 @@ export function calculatePortfolioSummary(
   cash: readonly CashAsset[],
   loans: readonly Loan[],
   cashFlowItems: readonly CashFlowItem[],
+  collaterals: readonly Collateral[] = [],
+  warningRatioPercent = 160,
+  marginCallRatioPercent = 120,
 ): PortfolioSummary {
   const stockMarketValueTwd = sum(stocks.map(calculateStockMarketValue))
   const cashValueTwd = sum(cash.map(calculateCashValue))
@@ -191,6 +261,8 @@ export function calculatePortfolioSummary(
   const monthlyLoanInterestTwd = sum(
     loans.map((loan) => loan.monthlyInterest > 0 ? loan.monthlyInterest : calculateMonthlyLoanInterest(loan.outstandingBalance, loan.annualInterestRatePercent)),
   )
+  const collateralValueTwd = calculateTotalCollateralValueTwd(collaterals, stocks)
+  const maintenanceOverview = calculateMaintenanceOverview(collateralValueTwd, totalLiabilitiesTwd, warningRatioPercent, marginCallRatioPercent)
   const incomeItems = cashFlowItems.filter((item) => item.type === 'income')
   const expenseItems = cashFlowItems.filter((item) => item.type === 'expense')
   const monthlyCashFlowTwd = calculateMonthlyCashFlow(incomeItems, expenseItems, monthlyEstimatedDividendTwd, monthlyLoanInterestTwd)
@@ -207,5 +279,10 @@ export function calculatePortfolioSummary(
     monthlyCashFlowTwd,
     debtRatioPercent: totalAssetsTwd > 0 ? (totalLiabilitiesTwd / totalAssetsTwd) * 100 : 0,
     leverageRatio: calculateLeverageRatio(totalAssetsTwd, netWorthTwd),
+    collateralValueTwd,
+    maintenanceRatioPercent: maintenanceOverview.ratioPercent,
+    maintenanceStatus: maintenanceOverview.status,
+    distanceToWarningPoints: maintenanceOverview.distanceToWarningPoints,
+    distanceToMarginCallPoints: maintenanceOverview.distanceToMarginCallPoints,
   }
 }

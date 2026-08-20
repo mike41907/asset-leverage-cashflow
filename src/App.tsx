@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, CircleDollarSign } from 'lucide-react'
+import { CircleDollarSign } from 'lucide-react'
 import { AppShell } from './components/AppShell'
 import { calculatePortfolioSummary } from './domain/calculations'
-import type { AppState, AppSettings, CashAsset, PageKey, StockAsset } from './domain/models'
-import { clearDemoData, deleteCash, deleteStock, loadAppState, saveCash, saveSettings, saveStock } from './data/repository'
+import type { AppState, AppSettings, CashAsset, Collateral, Loan, PageKey, StockAsset } from './domain/models'
+import { clearDemoData, deleteCash, deleteLoanBundle, deleteStock, loadAppState, saveCash, saveLoanBundle, saveSettings, saveStock } from './data/repository'
 import { DashboardPage } from './pages/DashboardPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ComingSoonPage } from './pages/ComingSoonPage'
+import { LoanManagementPage } from './pages/LoanManagementPage'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '本機資料操作失敗，請重新整理後再試。'
@@ -39,7 +40,15 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
-  const summary = useMemo(() => state ? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems) : null, [state])
+  const summary = useMemo(() => state ? calculatePortfolioSummary(
+    state.stocks,
+    state.cash,
+    state.loans,
+    state.cashFlowItems,
+    state.collaterals,
+    state.settings.maintenanceWarningRatioPercent,
+    state.settings.maintenanceMarginCallRatioPercent,
+  ) : null, [state])
 
   const runAction = async (action: () => Promise<void>, successMessage: string) => {
     try {
@@ -71,6 +80,29 @@ export default function App() {
     setState((current) => current ? { ...current, cash: current.cash.filter((item) => item.id !== id) } : current)
   }, '現金資產已刪除。')
 
+  const handleSaveLoan = (loan: Loan, collaterals: Collateral[], removedCollateralIds: string[]) => runAction(async () => {
+    await saveLoanBundle(loan, collaterals, removedCollateralIds)
+    setState((current) => current ? {
+      ...current,
+      loans: current.loans.some((item) => item.id === loan.id)
+        ? current.loans.map((item) => item.id === loan.id ? loan : item)
+        : [...current.loans, loan],
+      collaterals: [
+        ...current.collaterals.filter((item) => !removedCollateralIds.includes(item.id) && !collaterals.some((next) => next.id === item.id)),
+        ...collaterals,
+      ],
+    } : current)
+  }, '質押借款已儲存。')
+
+  const handleDeleteLoan = (loan: Loan) => runAction(async () => {
+    await deleteLoanBundle(loan)
+    setState((current) => current ? {
+      ...current,
+      loans: current.loans.filter((item) => item.id !== loan.id),
+      collaterals: current.collaterals.filter((item) => !loan.collateralIds.includes(item.id)),
+    } : current)
+  }, '質押借款已刪除。')
+
   const handleUpdateSettings = (settings: AppSettings) => runAction(async () => {
     await saveSettings(settings)
     setState((current) => current ? { ...current, settings } : current)
@@ -90,7 +122,7 @@ export default function App() {
   const page = summary && activePage === 'dashboard' ? <DashboardPage state={state} summary={summary} onNavigate={setActivePage} />
     : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} />
       : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} />
-        : activePage === 'simulation' ? <ComingSoonPage icon={BarChart3} eyebrow="質押模擬器 / V0.2" title="先有基準線，才看得懂槓桿。" description="下一階段會讓你選擇擔保股票、調整借款 Slider，並同步看到利息、維持率與再投資後的 Before / After。" phase="V0.2" features={['可設定質押借款本金與年利率', '模組化維持率公式，不綁定單一金融機構規則', '借款投入股票後，總資產與淨資產分開呈現']} onNavigate={setActivePage} />
+        : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} collaterals={state.collaterals} settings={state.settings} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} />
           : <ComingSoonPage icon={CircleDollarSign} eyebrow="現金流規劃 / V0.5" title="把股息，放回每月生活裡。" description="現金流模組會整合薪資、股息、固定支出與借款成本，讓被動收入目標不只停留在殖利率。" phase="V0.5" features={['收入與支出項目可分開管理', '股息與利息成本獨立列示', '淨領目標與所需本金計算器']} onNavigate={setActivePage} />
 
   return <AppShell activePage={activePage} onNavigate={(nextPage) => { setActivePage(nextPage); setError(null) }}><div className="page-content-wrap">{page}</div>{error && <div className="toast toast-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="關閉錯誤訊息">×</button></div>}{notice && <div className="toast toast-success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="關閉成功訊息">×</button></div>}</AppShell>

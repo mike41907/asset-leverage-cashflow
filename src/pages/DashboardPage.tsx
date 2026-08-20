@@ -17,7 +17,7 @@ import {
   calculateStockUnrealizedGainPercent,
   type PortfolioSummary,
 } from '../domain/calculations'
-import { formatCurrencyWithSign, formatPercent, formatRatio, formatTwd } from '../shared/formatters'
+import { formatCurrencyWithSign, formatPercent, formatTwd } from '../shared/formatters'
 import { MetricCard } from '../components/MetricCard'
 import { EmptyState } from '../components/EmptyState'
 
@@ -30,18 +30,23 @@ interface DashboardPageProps {
 export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps) {
   const displayMode = state.settings.numberDisplayMode
   const hasAssets = state.stocks.length > 0 || state.cash.length > 0
+  const hasLoans = state.loans.length > 0
   const totalAssets = summary.totalAssetsTwd || 1
   const stockShare = (summary.stockMarketValueTwd / totalAssets) * 100
   const cashShare = (summary.cashValueTwd / totalAssets) * 100
   const topStocks = [...state.stocks]
     .sort((left, right) => calculateStockMarketValue(right) - calculateStockMarketValue(left))
     .slice(0, 4)
+  const maintenanceValue = summary.maintenanceStatus === 'unavailable' ? '—' : formatPercent(summary.maintenanceRatioPercent)
+  const maintenanceTitle = !hasLoans ? '尚未設定質押' : summary.maintenanceStatus === 'safe' ? '維持率安全' : summary.maintenanceStatus === 'warning' ? '維持率進入警戒' : summary.maintenanceStatus === 'danger' ? '維持率已低於追繳線' : '維持率暫時無法判讀'
+  const maintenanceDescription = !hasLoans ? '目前沒有借款資料可進行維持率判讀。' : `${maintenanceValue}；警戒線 ${formatPercent(state.settings.maintenanceWarningRatioPercent, 0)}。`
+  const MaintenanceIcon = summary.maintenanceStatus === 'safe' ? ShieldCheck : CircleAlert
 
   return (
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.1</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.2</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -154,7 +159,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                 <span className="mix-bar-stock" style={{ width: `${Math.min(100, stockShare)}%` }} />
                 <span className="mix-bar-cash" style={{ width: `${Math.min(100, cashShare)}%` }} />
               </div>
-              <p className="card-footnote">目前尚未建立質押借款，負債為 NT$0。V0.2 將在此加入維持率與槓桿風險。</p>
+              <p className="card-footnote">{hasLoans ? `擔保品市值 ${formatTwd(summary.collateralValueTwd, displayMode)}；維持率會隨你輸入的現價更新。` : '目前尚未建立質押借款，負債為 NT$0。前往質押模擬建立第一筆借款。'}</p>
             </article>
 
             <article className="card health-card">
@@ -163,15 +168,15 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                   <div className="section-kicker">資產健康度</div>
                   <h2>先建立基準線</h2>
                 </div>
-                <div className="health-icon"><ShieldCheck size={20} /></div>
+                <div className={`health-icon health-icon-${summary.maintenanceStatus}`}><MaintenanceIcon size={20} /></div>
               </div>
-              <div className="health-status">
-                <div className="health-status-icon"><CircleAlert size={20} /></div>
-                <div><strong>尚未設定質押</strong><span>目前沒有借款資料可進行維持率判讀。</span></div>
+              <div className={`health-status health-status-${summary.maintenanceStatus}`}>
+                <div className="health-status-icon"><MaintenanceIcon size={20} /></div>
+                <div><strong>{maintenanceTitle}</strong><span>{maintenanceDescription}</span></div>
               </div>
               <div className="health-stats">
+                <div><span>維持率</span><strong className={`status-text status-${summary.maintenanceStatus}`}>{maintenanceValue}</strong></div>
                 <div><span>負債比</span><strong>{formatPercent(summary.debtRatioPercent)}</strong></div>
-                <div><span>資產槓桿</span><strong>{formatRatio(summary.leverageRatio)}</strong></div>
                 <div><span>月淨現金流</span><strong className={summary.monthlyCashFlowTwd >= 0 ? 'positive-text' : 'negative-text'}>{formatTwd(summary.monthlyCashFlowTwd, displayMode)}</strong></div>
               </div>
               <button type="button" className="text-button" onClick={() => onNavigate('simulation')}>
@@ -209,13 +214,13 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V0.1 完成項目</div>
-              <h2>你的資產基準線已建立。</h2>
-              <p>先把持倉與現金輸入正確，下一階段才能看懂借款與再投資帶來的變化。</p>
+              <div className="section-kicker">V0.2 完成項目</div>
+              <h2>你的第一層槓桿風控已建立。</h2>
+              <p>現在可以記錄借款與擔保品，先用維持率確認風險，再進入後續現金流規劃。</p>
               <div className="next-step-list">
                 <div><span className="check-icon">✓</span>總資產與淨資產分離計算</div>
                 <div><span className="check-icon">✓</span>資料保存在本機 IndexedDB</div>
-                <div><span className="pending-icon">→</span>V0.2 加入質押與維持率</div>
+                <div><span className="check-icon">✓</span>借款利息與擔保品維持率預覽</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

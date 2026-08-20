@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { deleteDatabase } from './database'
-import { clearDemoData, loadAppState, saveStock } from './repository'
+import type { Collateral, Loan } from '../domain/models'
+import { clearDemoData, deleteLoanBundle, loadAppState, saveLoanBundle, saveStock } from './repository'
 
 describe('local repository', () => {
   beforeEach(async () => {
@@ -26,5 +27,52 @@ describe('local repository', () => {
 
     expect(cleared.stocks.map((item) => item.symbol)).toEqual(['0050-USER'])
     expect(cleared.cash).toHaveLength(0)
+  })
+
+  it('persists a loan with its collateral bundle and removes both together', async () => {
+    const first = await loadAppState()
+    const time = new Date().toISOString()
+    const collateral: Collateral = {
+      id: 'collateral-test',
+      name: '測試擔保品',
+      institution: '測試證券',
+      stockAssetId: first.stocks[0].id,
+      pledgedShares: 500,
+      maintenanceFormula: 'market-value-over-loan',
+      warningRatioPercent: 160,
+      marginCallRatioPercent: 120,
+      notes: '',
+      createdAt: time,
+      updatedAt: time,
+    }
+    const loan: Loan = {
+      id: 'loan-test',
+      name: '測試質押借款',
+      institution: '測試證券',
+      collateralIds: [collateral.id],
+      principal: 50_000,
+      outstandingBalance: 50_000,
+      annualInterestRatePercent: 3,
+      borrowedAt: '2026-08-20',
+      maturityDate: null,
+      repaymentMethod: 'interest-only',
+      monthlyPrincipal: 0,
+      monthlyInterest: 125,
+      warningRatioPercent: 160,
+      marginCallRatioPercent: 120,
+      notes: '',
+      createdAt: time,
+      updatedAt: time,
+    }
+
+    await saveLoanBundle(loan, [collateral])
+    const saved = await loadAppState()
+    expect(saved.loans.some((item) => item.id === loan.id)).toBe(true)
+    expect(saved.collaterals.some((item) => item.id === collateral.id)).toBe(true)
+
+    await deleteLoanBundle(loan)
+    const deleted = await loadAppState()
+    expect(deleted.loans.some((item) => item.id === loan.id)).toBe(false)
+    expect(deleted.collaterals.some((item) => item.id === collateral.id)).toBe(false)
   })
 })

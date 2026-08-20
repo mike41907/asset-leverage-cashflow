@@ -1,6 +1,8 @@
 import {
+  calculateCollateralSelectionsValueTwd,
   calculateDividendTarget,
   calculateMaintenanceRatio,
+  calculateMaintenanceStatus,
   calculateMarginCallDrop,
   calculateNetWorth,
   calculateRequiredShares,
@@ -50,6 +52,16 @@ describe('portfolio calculations', () => {
 
   it('calculates a 200% maintenance ratio', () => {
     expect(calculateMaintenanceRatio(3_000_000, 1_500_000)).toBe(200)
+  })
+
+  it('values only the pledged shares, capped at the shares actually held', () => {
+    expect(calculateCollateralSelectionsValueTwd([{ stockAssetId: 'stock-1', pledgedShares: 1200 }], [stock({ shares: 1000, currentPrice: 300 })])).toBe(300_000)
+  })
+
+  it('maps maintenance ratio to configurable safe, warning, and danger states', () => {
+    expect(calculateMaintenanceStatus(200, 160, 120)).toBe('safe')
+    expect(calculateMaintenanceStatus(150, 160, 120)).toBe('warning')
+    expect(calculateMaintenanceStatus(100, 160, 120)).toBe('danger')
   })
 
   it('calculates the required principal for a dividend target', () => {

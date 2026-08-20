@@ -99,6 +99,25 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
   await putInStore(STORE_NAMES.settings, { ...settings, updatedAt: now() })
 }
 
+export async function saveLoanBundle(
+  loan: Loan,
+  collaterals: Collateral[],
+  removedCollateralIds: string[] = [],
+): Promise<void> {
+  await Promise.all([
+    putInStore(STORE_NAMES.loans, loan),
+    ...collaterals.map((collateral) => putInStore(STORE_NAMES.collaterals, collateral)),
+    ...removedCollateralIds.map((id) => deleteFromStore(STORE_NAMES.collaterals, id)),
+  ])
+}
+
+export async function deleteLoanBundle(loan: Loan): Promise<void> {
+  await Promise.all([
+    deleteFromStore(STORE_NAMES.loans, loan.id),
+    ...loan.collateralIds.map((id) => deleteFromStore(STORE_NAMES.collaterals, id)),
+  ])
+}
+
 export async function clearDemoData(state: AppState): Promise<AppState> {
   const demoStocks = state.stocks.filter((item) => item.isDemo)
   const demoCash = state.cash.filter((item) => item.isDemo)

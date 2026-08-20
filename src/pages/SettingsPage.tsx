@@ -32,7 +32,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />系統設定</div>
           <h1>讓工具，<span>跟你的習慣一起工作。</span></h1>
-          <p>V0.1 先處理顯示方式、本機資料與風控門檻預留。</p>
+          <p>V0.2 已加入質押借款與維持率；這裡集中管理顯示與風控門檻。</p>
         </div>
       </section>
 
@@ -49,7 +49,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
       </section>
 
       <section className="settings-section">
-        <div className="settings-section-heading"><div className="settings-section-icon warning-icon"><ShieldCheck size={18} /></div><div><h2>質押風控門檻</h2><p>先保存你的偏好，V0.2 維持率模擬會套用這些門檻。</p></div></div>
+        <div className="settings-section-heading"><div className="settings-section-icon warning-icon"><ShieldCheck size={18} /></div><div><h2>質押風控門檻</h2><p>質押管理與首頁風控卡會套用這些維持率門檻。</p></div></div>
         <div className="settings-card card">
           <div className="form-grid form-grid-two settings-form-grid">
             <label className="form-field"><span>警戒維持率<small>低於此值顯示警戒</small></span><div className="input-with-suffix"><input type="number" min="0" step="1" value={settings.maintenanceWarningRatioPercent} onChange={(event) => update({ maintenanceWarningRatioPercent: Number(event.target.value) })} /><em>%</em></div></label>
@@ -68,7 +68,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         </div>
       </section>
 
-      <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V0.1.0</span></footer>
+      <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V0.2.0</span></footer>
     </div>
   )
 }
