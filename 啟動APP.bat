@@ -11,10 +11,10 @@ if not exist "%~dp0node_modules\.bin\vite.CMD" (
   exit /b 1
 )
 
-start "資產槓桿 APP Server" /min cmd /c ""%~dp0node_modules\.bin\vite.CMD" --host 127.0.0.1 --port 4173"
+start "資產槓桿 APP Server" /min cmd /c ""%~dp0node_modules\.bin\vite.CMD" --host 127.0.0.1 --port 5173"
 timeout /t 2 /nobreak >nul
-start "" "http://127.0.0.1:4173/"
+start "" "http://127.0.0.1:5173/"
 
-echo APP 已啟動：http://127.0.0.1:4173/
+echo APP 已啟動：http://127.0.0.1:5173/
 echo 關閉這個視窗不會停止背景伺服器；請在工作管理員結束 node.exe，或重新啟動電腦。
 endlocal
