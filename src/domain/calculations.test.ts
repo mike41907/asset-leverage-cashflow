@@ -305,6 +305,33 @@ describe('portfolio calculations', () => {
     expect(result.maintenanceRatioPercent).toBe(250)
   })
 
+  it('uses the selected stock yield when per-share dividend data is missing', () => {
+    const result = calculateReinvestmentSimulation({
+      base: {
+        stockMarketValueTwd: 0,
+        cashValueTwd: 0,
+        totalAssetsTwd: 0,
+        totalLiabilitiesTwd: 0,
+        netWorthTwd: 0,
+        annualEstimatedDividendTwd: 0,
+        monthlyCashFlowTwd: 0,
+        debtRatioPercent: 0,
+        leverageRatio: Number.POSITIVE_INFINITY,
+      },
+      loanAmountTwd: 440_000,
+      annualInterestRatePercent: 3,
+      targetStock: stock({ symbol: '00878', currentPrice: 32.38, estimatedAnnualDividendPerShare: 0, estimatedYieldPercent: 8 }),
+      investmentAllocationPercent: 100,
+      collateralValueTwd: 1_000_000,
+      warningRatioPercent: 160,
+      marginCallRatioPercent: 120,
+    })
+
+    expect(result.sharesPurchased).toBe(13_588)
+    expect(result.annualDividendTwd).toBeCloseTo(result.newInvestmentMarketValueTwd * 0.08, 5)
+    expect(result.monthlyDividendTwd - result.monthlyInterestTwd).toBeGreaterThan(1_800)
+  })
+
   it('compares a saved scenario across base, -20%, and -30% market stress', () => {
     const result = calculateScenarioComparison({
       base: {

@@ -49,7 +49,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.6.1</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.6.2</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -237,14 +237,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.6.1 完成項目</div>
-              <h2>截圖匯入持倉，加入後自動更新行情。</h2>
-              <p>台股與美股券商截圖會先逐筆確認；只要代號與股數辨識正確即可加入，平均成本可稍後補填。</p>
+              <div className="section-kicker">V1.6.2 完成項目</div>
+              <h2>再投入試算，先把股息資料補完整。</h2>
+              <p>選擇缺少配息資料的股票時，試算會先查詢公開行情；查不到時也能直接輸入年化殖利率假設。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>改善台股／美股列式持倉截圖辨識</div>
-                <div><span className="check-icon">✓</span>代號與股數確認後即可加入</div>
-                <div><span className="check-icon">✓</span>加入時自動查詢目前價格與美元匯率</div>
-                <div><span className="check-icon">✓</span>成本未提供時標示待補，不虛算損益</div>
+                <div><span className="check-icon">✓</span>自動帶入目標股票最新價格</div>
+                <div><span className="check-icon">✓</span>自動抓近 12 個月或前一年度配息</div>
+                <div><span className="check-icon">✓</span>新增年股息同步反映每月現金流</div>
+                <div><span className="check-icon">✓</span>可覆寫年化殖利率，明確區分股息與價差</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

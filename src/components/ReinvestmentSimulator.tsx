@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { ArrowDownRight, ArrowUpRight, BarChart3, Check, ChevronDown, CircleAlert, CircleDollarSign, Info, ShieldCheck } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowDownRight, ArrowUpRight, BarChart3, Check, ChevronDown, CircleAlert, CircleDollarSign, Info, LoaderCircle, ShieldCheck } from 'lucide-react'
 import type { AppSettings, StockAsset } from '../domain/models'
 import {
   calculateCollateralSelectionsValueTwd,
@@ -8,6 +8,7 @@ import {
   type PortfolioSummary,
   type SimulationSnapshot,
 } from '../domain/calculations'
+import { fetchStockQuote, type StockQuote } from '../services/quoteService'
 import { formatNumber, formatPercent, formatRatio, formatTwd } from '../shared/formatters'
 
 interface ReinvestmentSimulatorProps {
@@ -83,8 +84,79 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
   const [investmentAllocationPercent, setInvestmentAllocationPercent] = useState(100)
   const [targetStockId, setTargetStockId] = useState(initialTargetStockId(stocks))
   const [collateralSelections, setCollateralSelections] = useState<SimulationCollateralSelection[]>(() => initialCollateralSelections(stocks))
+  const [targetQuote, setTargetQuote] = useState<StockQuote | null>(null)
+  const [targetQuoteStatus, setTargetQuoteStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [targetQuoteMessage, setTargetQuoteMessage] = useState('')
+  const [yieldOverridePercent, setYieldOverridePercent] = useState<number | null>(null)
 
   const targetStock = stocks.find((stock) => stock.id === targetStockId) ?? null
+  useEffect(() => {
+    setTargetQuote(null)
+    setTargetQuoteStatus('idle')
+    setTargetQuoteMessage('')
+    setYieldOverridePercent(null)
+    if (!targetStock || targetStock.estimatedAnnualDividendPerShare > 0 || targetStock.estimatedYieldPercent > 0) return
+
+    let active = true
+    setTargetQuoteStatus('loading')
+    setTargetQuoteMessage(`正在查詢 ${targetStock.symbol} 的最新行情與配息…`)
+    void fetchStockQuote(targetStock.symbol, targetStock.market)
+      .then((quote) => {
+        if (!active) return
+        setTargetQuote(quote)
+        setTargetQuoteStatus('success')
+        setTargetQuoteMessage(quote.dividend ? `已帶入 ${quote.dividend.period === 'trailing-12-months' ? '近 12 個月' : '前一完整年度'}配息。` : '行情已更新，但公開資料沒有配息事件；請輸入你的殖利率假設。')
+      })
+      .catch((error) => {
+        if (!active) return
+        setTargetQuoteStatus('error')
+        setTargetQuoteMessage(error instanceof Error ? error.message : '配息查詢失敗，請改用手動殖利率假設。')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [targetStock?.estimatedAnnualDividendPerShare, targetStock?.estimatedYieldPercent, targetStock?.id, targetStock?.market, targetStock?.symbol])
+
+  const quotedTargetStock = useMemo<StockAsset | null>(() => {
+    if (!targetStock || !targetQuote) return targetStock
+    const annualDividendPerShare = targetQuote.dividend?.annualDividendPerShare ?? targetStock.estimatedAnnualDividendPerShare
+    const estimatedYieldPercent = targetQuote.dividend && targetQuote.price > 0
+      ? targetQuote.dividend.annualDividendPerShare / targetQuote.price * 100
+      : targetStock.estimatedYieldPercent
+    return {
+      ...targetStock,
+      name: targetQuote.name || targetStock.name,
+      currentPrice: targetQuote.price,
+      currentPriceSource: 'yahoo-public',
+      currentPriceFetchedAt: targetQuote.fetchedAt,
+      currentPriceMarketAt: targetQuote.marketAt ?? undefined,
+      currency: targetQuote.currency,
+      exchangeRateToTwd: targetQuote.currency === 'TWD' ? 1 : targetStock.exchangeRateToTwd,
+      estimatedAnnualDividendPerShare: annualDividendPerShare,
+      estimatedYieldPercent,
+      dividendSource: targetQuote.dividend ? 'yahoo-public' : targetStock.dividendSource,
+      dividendFetchedAt: targetQuote.dividend ? targetQuote.fetchedAt : targetStock.dividendFetchedAt,
+      dividendPeriod: targetQuote.dividend?.period ?? targetStock.dividendPeriod,
+      dividendPeriodStart: targetQuote.dividend?.periodStart ?? targetStock.dividendPeriodStart,
+      dividendPeriodEnd: targetQuote.dividend?.periodEnd ?? targetStock.dividendPeriodEnd,
+    }
+  }, [targetQuote, targetStock])
+
+  const targetYieldPercent = quotedTargetStock && quotedTargetStock.currentPrice > 0
+    ? quotedTargetStock.estimatedYieldPercent > 0
+      ? quotedTargetStock.estimatedYieldPercent
+      : quotedTargetStock.estimatedAnnualDividendPerShare / quotedTargetStock.currentPrice * 100
+    : 0
+  const simulationTargetStock = useMemo<StockAsset | null>(() => {
+    if (!quotedTargetStock || yieldOverridePercent === null) return quotedTargetStock
+    return {
+      ...quotedTargetStock,
+      estimatedAnnualDividendPerShare: quotedTargetStock.currentPrice * yieldOverridePercent / 100,
+      estimatedYieldPercent: yieldOverridePercent,
+      dividendSource: 'manual',
+    }
+  }, [quotedTargetStock, yieldOverridePercent])
   const collateralValueTwd = calculateCollateralSelectionsValueTwd(collateralSelections, stocks)
   const simulation = useMemo(() => calculateReinvestmentSimulation({
     base: {
@@ -100,12 +172,12 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
     },
     loanAmountTwd,
     annualInterestRatePercent,
-    targetStock,
+    targetStock: simulationTargetStock,
     investmentAllocationPercent,
     collateralValueTwd,
     warningRatioPercent: settings.maintenanceWarningRatioPercent,
     marginCallRatioPercent: settings.maintenanceMarginCallRatioPercent,
-  }), [annualInterestRatePercent, collateralValueTwd, investmentAllocationPercent, loanAmountTwd, settings.maintenanceMarginCallRatioPercent, settings.maintenanceWarningRatioPercent, summary, targetStock])
+  }), [annualInterestRatePercent, collateralValueTwd, investmentAllocationPercent, loanAmountTwd, settings.maintenanceMarginCallRatioPercent, settings.maintenanceWarningRatioPercent, simulationTargetStock, summary])
   const SimulationStatusIcon = statusIcon(simulation.maintenanceStatus)
 
   const toggleCollateral = (stock: StockAsset) => {
@@ -161,11 +233,15 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
           <div className="simulation-control-group investment-group">
             <div className="simulation-control-label"><span>借款再投入</span><strong>{investmentAllocationPercent}%</strong></div>
             <label className="form-field"><span>投入標的</span><div className="select-wrap"><select value={targetStockId} onChange={(event) => setTargetStockId(event.target.value)}><option value="">不投入股票，保留現金</option>{stocks.map((stock) => <option value={stock.id} key={stock.id}>{stock.symbol} · {stock.name}</option>)}</select><ChevronDown className="select-chevron" size={16} aria-hidden="true" /></div></label>
+            {targetStock && <>
+              <label className="form-field"><span>預估年化殖利率<small>股息假設，不含價差</small></span><div className="input-with-suffix"><input min="0" step="0.1" type="number" value={yieldOverridePercent ?? (targetYieldPercent || '')} placeholder="例如 8" onChange={(event) => setYieldOverridePercent(event.target.value === '' ? null : Math.max(0, Number(event.target.value)))} /><em>%</em></div></label>
+              <div className={`simulation-yield-note ${targetQuoteStatus === 'error' ? 'is-error' : ''}`} role="status">{targetQuoteStatus === 'loading' && <LoaderCircle size={13} className="spin-icon" />}{targetQuoteStatus !== 'loading' && <Info size={13} />}{targetQuoteStatus === 'idle' && targetYieldPercent > 0 ? `使用資產目前的年化殖利率 ${formatPercent(targetYieldPercent)}；可在本次試算中覆寫。` : targetQuoteStatus === 'idle' ? '尚無配息資料；若不輸入假設，新增年股息會以 0 計算。' : targetQuoteMessage}</div>
+            </>}
             <input className="simulation-range" type="range" min="0" max="100" step="5" value={investmentAllocationPercent} aria-label="借款投入比例" onChange={(event) => setInvestmentAllocationPercent(Number(event.target.value))} />
             <div className="range-endpoints"><span>0% 保留現金</span><span>100% 全部投入</span></div>
           </div>
 
-          <div className="simulation-note"><Info size={15} /><span>期間 {borrowingMonths} 個月・{repaymentMethod === 'interest-only' ? '只繳利息' : repaymentMethod === 'equal-principal' ? '本金平均攤還' : '本息平均攤還'}；目前先以起始借款金額估算利息。</span></div>
+          <div className="simulation-note"><Info size={15} /><span>期間 {borrowingMonths} 個月・{repaymentMethod === 'interest-only' ? '只繳利息' : repaymentMethod === 'equal-principal' ? '本金平均攤還' : '本息平均攤還'}；目前先以起始借款金額估算利息。股息殖利率是現金流假設，不代表保證年化總報酬。</span></div>
         </section>
 
         <section className="simulation-results-column">
@@ -181,7 +257,7 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
             <div className="simulation-output-grid">
               <div><span>可買股數</span><strong>{formatNumber(simulation.sharesPurchased)}</strong><small>{targetStock?.symbol ?? '未選擇標的'}</small></div>
               <div><span>新增股票市值</span><strong>{formatTwd(simulation.newInvestmentMarketValueTwd, displayMode)}</strong><small>依模擬現價</small></div>
-              <div><span>新增年股息</span><strong>{formatTwd(simulation.annualDividendTwd, displayMode)}</strong><small>預估值</small></div>
+              <div><span>新增年股息</span><strong>{formatTwd(simulation.annualDividendTwd, displayMode)}</strong><small>{targetStock ? `年化殖利率 ${formatPercent(yieldOverridePercent ?? targetYieldPercent)}` : '預估值'}</small></div>
               <div><span>新增年利息</span><strong>{formatTwd(simulation.annualInterestTwd, displayMode)}</strong><small>借款成本</small></div>
               <div><span>新增月利息</span><strong>{formatTwd(simulation.monthlyInterestTwd, displayMode)}</strong><small>年利率 {formatPercent(annualInterestRatePercent)}</small></div>
               <div><span>模擬後現金</span><strong>{formatTwd(simulation.after.cashValueTwd, displayMode)}</strong><small>含未投入借款</small></div>
