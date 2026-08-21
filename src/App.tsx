@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CircleDollarSign } from 'lucide-react'
 import { AppShell } from './components/AppShell'
 import { calculatePortfolioSummary } from './domain/calculations'
-import type { AppState, AppSettings, CashAsset, Collateral, Loan, PageKey, StockAsset } from './domain/models'
-import { clearDemoData, deleteCash, deleteLoanBundle, deleteStock, loadAppState, saveCash, saveLoanBundle, saveSettings, saveStock } from './data/repository'
+import type { AppState, AppSettings, CashAsset, CashFlowItem, Collateral, Loan, PageKey, StockAsset } from './domain/models'
+import { clearDemoData, deleteCash, deleteCashFlowItem, deleteLoanBundle, deleteStock, loadAppState, saveCash, saveCashFlowItem, saveLoanBundle, saveSettings, saveStock } from './data/repository'
 import { DashboardPage } from './pages/DashboardPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { ComingSoonPage } from './pages/ComingSoonPage'
 import { LoanManagementPage } from './pages/LoanManagementPage'
+import { CashFlowPage } from './pages/CashFlowPage'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '本機資料操作失敗，請重新整理後再試。'
@@ -80,6 +79,21 @@ export default function App() {
     setState((current) => current ? { ...current, cash: current.cash.filter((item) => item.id !== id) } : current)
   }, '現金資產已刪除。')
 
+  const handleSaveCashFlowItem = (item: CashFlowItem) => runAction(async () => {
+    await saveCashFlowItem(item)
+    setState((current) => current ? {
+      ...current,
+      cashFlowItems: current.cashFlowItems.some((existing) => existing.id === item.id)
+        ? current.cashFlowItems.map((existing) => existing.id === item.id ? item : existing)
+        : [...current.cashFlowItems, item],
+    } : current)
+  }, '現金流項目已儲存。')
+
+  const handleDeleteCashFlowItem = (item: CashFlowItem) => runAction(async () => {
+    await deleteCashFlowItem(item.id)
+    setState((current) => current ? { ...current, cashFlowItems: current.cashFlowItems.filter((existing) => existing.id !== item.id) } : current)
+  }, '現金流項目已刪除。')
+
   const handleSaveLoan = (loan: Loan, collaterals: Collateral[], removedCollateralIds: string[]) => runAction(async () => {
     await saveLoanBundle(loan, collaterals, removedCollateralIds)
     setState((current) => current ? {
@@ -121,9 +135,9 @@ export default function App() {
 
   const page = summary && activePage === 'dashboard' ? <DashboardPage state={state} summary={summary} onNavigate={setActivePage} />
     : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} />
-      : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} />
+        : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} />
         : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} collaterals={state.collaterals} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} />
-          : <ComingSoonPage icon={CircleDollarSign} eyebrow="現金流規劃 / V0.5" title="把股息，放回每月生活裡。" description="現金流模組會整合薪資、股息、固定支出與借款成本，讓被動收入目標不只停留在殖利率。" phase="V0.5" features={['收入與支出項目可分開管理', '股息與利息成本獨立列示', '淨領目標與所需本金計算器']} onNavigate={setActivePage} />
+          : <CashFlowPage items={state.cashFlowItems} loans={state.loans} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} />
 
   return <AppShell activePage={activePage} onNavigate={(nextPage) => { setActivePage(nextPage); setError(null) }}><div className="page-content-wrap">{page}</div>{error && <div className="toast toast-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="關閉錯誤訊息">×</button></div>}{notice && <div className="toast toast-success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="關閉成功訊息">×</button></div>}</AppShell>
 }

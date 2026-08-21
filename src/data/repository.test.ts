@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { deleteDatabase } from './database'
-import type { Collateral, Loan } from '../domain/models'
-import { clearDemoData, deleteLoanBundle, loadAppState, saveLoanBundle, saveStock } from './repository'
+import type { CashFlowItem, Collateral, Loan } from '../domain/models'
+import { clearDemoData, deleteCashFlowItem, deleteLoanBundle, loadAppState, saveCashFlowItem, saveLoanBundle, saveStock } from './repository'
 
 describe('local repository', () => {
   beforeEach(async () => {
@@ -74,5 +74,29 @@ describe('local repository', () => {
     const deleted = await loadAppState()
     expect(deleted.loans.some((item) => item.id === loan.id)).toBe(false)
     expect(deleted.collaterals.some((item) => item.id === collateral.id)).toBe(false)
+  })
+
+  it('persists and deletes a cash flow item locally', async () => {
+    await loadAppState()
+    const item: CashFlowItem = {
+      id: 'cashflow-test',
+      type: 'income',
+      category: '薪資',
+      name: '測試薪資',
+      monthlyAmount: 50_000,
+      linkedAssetId: null,
+      isActive: true,
+      notes: '只存在本機',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await saveCashFlowItem(item)
+    const saved = await loadAppState()
+    expect(saved.cashFlowItems).toContainEqual(item)
+
+    await deleteCashFlowItem(item.id)
+    const deleted = await loadAppState()
+    expect(deleted.cashFlowItems.some((existing) => existing.id === item.id)).toBe(false)
   })
 })

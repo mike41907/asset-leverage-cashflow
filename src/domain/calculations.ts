@@ -15,7 +15,11 @@ export interface PortfolioSummary {
   netWorthTwd: number
   annualEstimatedDividendTwd: number
   monthlyEstimatedDividendTwd: number
+  monthlyIncomeTwd: number
+  monthlyExpenseTwd: number
   monthlyLoanInterestTwd: number
+  monthlyLoanPrincipalTwd: number
+  monthlyDebtServiceTwd: number
   monthlyCashFlowTwd: number
   debtRatioPercent: number
   leverageRatio: number
@@ -92,6 +96,17 @@ export interface DividendTargetResult {
   monthlyGrossTargetTwd: number
   annualTargetTwd: number
   requiredPrincipalTwd: number | null
+}
+
+export interface MonthlyCashFlowBreakdown {
+  manualIncomeTwd: number
+  manualExpenseTwd: number
+  investmentIncomeTwd: number
+  loanInterestTwd: number
+  loanPrincipalTwd: number
+  totalIncomeTwd: number
+  totalExpenseTwd: number
+  netCashFlowTwd: number
 }
 
 function finitePositive(value: number): number {
@@ -224,6 +239,32 @@ export function calculateMonthlyCashFlow(
   const monthlyIncome = sum(incomeItems.filter((item) => item.isActive).map((item) => finitePositive(item.monthlyAmount)))
   const monthlyExpenses = sum(expenseItems.filter((item) => item.isActive).map((item) => finitePositive(item.monthlyAmount)))
   return monthlyIncome + finitePositive(investmentIncomeTwd) - monthlyExpenses - finitePositive(debtServiceTwd)
+}
+
+export function calculateMonthlyCashFlowBreakdown(
+  cashFlowItems: readonly CashFlowItem[],
+  investmentIncomeTwd = 0,
+  loanInterestTwd = 0,
+  loanPrincipalTwd = 0,
+): MonthlyCashFlowBreakdown {
+  const manualIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
+  const manualExpenseTwd = sum(cashFlowItems.filter((item) => item.type === 'expense' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
+  const safeInvestmentIncomeTwd = finitePositive(investmentIncomeTwd)
+  const safeLoanInterestTwd = finitePositive(loanInterestTwd)
+  const safeLoanPrincipalTwd = finitePositive(loanPrincipalTwd)
+  const totalIncomeTwd = manualIncomeTwd + safeInvestmentIncomeTwd
+  const totalExpenseTwd = manualExpenseTwd + safeLoanInterestTwd + safeLoanPrincipalTwd
+
+  return {
+    manualIncomeTwd,
+    manualExpenseTwd,
+    investmentIncomeTwd: safeInvestmentIncomeTwd,
+    loanInterestTwd: safeLoanInterestTwd,
+    loanPrincipalTwd: safeLoanPrincipalTwd,
+    totalIncomeTwd,
+    totalExpenseTwd,
+    netCashFlowTwd: totalIncomeTwd - totalExpenseTwd,
+  }
 }
 
 export function calculateDividendTarget(
@@ -367,14 +408,16 @@ export function calculatePortfolioSummary(
   const netWorthTwd = calculateNetWorth(totalAssetsTwd, totalLiabilitiesTwd)
   const annualEstimatedDividendTwd = sum(stocks.map(calculateAnnualDividendTwd))
   const monthlyEstimatedDividendTwd = annualEstimatedDividendTwd / 12
+  const monthlyIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
+  const monthlyExpenseTwd = sum(cashFlowItems.filter((item) => item.type === 'expense' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
   const monthlyLoanInterestTwd = sum(
     loans.map((loan) => loan.monthlyInterest > 0 ? loan.monthlyInterest : calculateMonthlyLoanInterest(loan.outstandingBalance, loan.annualInterestRatePercent)),
   )
+  const monthlyLoanPrincipalTwd = sum(loans.map((loan) => finitePositive(loan.monthlyPrincipal)))
+  const monthlyDebtServiceTwd = monthlyLoanInterestTwd + monthlyLoanPrincipalTwd
   const collateralValueTwd = calculateTotalCollateralValueTwd(collaterals, stocks)
   const maintenanceOverview = calculateMaintenanceOverview(collateralValueTwd, totalLiabilitiesTwd, warningRatioPercent, marginCallRatioPercent)
-  const incomeItems = cashFlowItems.filter((item) => item.type === 'income')
-  const expenseItems = cashFlowItems.filter((item) => item.type === 'expense')
-  const monthlyCashFlowTwd = calculateMonthlyCashFlow(incomeItems, expenseItems, monthlyEstimatedDividendTwd, monthlyLoanInterestTwd)
+  const monthlyCashFlowBreakdown = calculateMonthlyCashFlowBreakdown(cashFlowItems, monthlyEstimatedDividendTwd, monthlyLoanInterestTwd, monthlyLoanPrincipalTwd)
 
   return {
     stockMarketValueTwd,
@@ -384,8 +427,12 @@ export function calculatePortfolioSummary(
     netWorthTwd,
     annualEstimatedDividendTwd,
     monthlyEstimatedDividendTwd,
+    monthlyIncomeTwd,
+    monthlyExpenseTwd,
     monthlyLoanInterestTwd,
-    monthlyCashFlowTwd,
+    monthlyLoanPrincipalTwd,
+    monthlyDebtServiceTwd,
+    monthlyCashFlowTwd: monthlyCashFlowBreakdown.netCashFlowTwd,
     debtRatioPercent: totalAssetsTwd > 0 ? (totalLiabilitiesTwd / totalAssetsTwd) * 100 : 0,
     leverageRatio: calculateLeverageRatio(totalAssetsTwd, netWorthTwd),
     collateralValueTwd,

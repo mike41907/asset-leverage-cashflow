@@ -5,12 +5,15 @@ import {
   calculateMaintenanceStatus,
   calculateMarginCallDrop,
   calculateNetWorth,
+  calculateMonthlyCashFlow,
+  calculateMonthlyCashFlowBreakdown,
+  calculatePortfolioSummary,
   calculateRequiredShares,
   calculateReinvestmentSimulation,
   calculateStressTest,
   calculateTotalAssets,
 } from './calculations'
-import type { CashAsset, StockAsset } from './models'
+import type { CashAsset, CashFlowItem, Loan, StockAsset } from './models'
 
 const stock = (overrides: Partial<StockAsset> = {}): StockAsset => ({
   id: 'stock-1',
@@ -79,6 +82,54 @@ describe('portfolio calculations', () => {
 
   it('rounds required shares up to a whole share', () => {
     expect(calculateRequiredShares(480_000, 6.5)).toBe(73_847)
+  })
+
+  it('separates manual cash flow, investment income, and debt service', () => {
+    const items: CashFlowItem[] = [
+      { id: 'salary', type: 'income' as const, category: '薪資', name: '薪資', monthlyAmount: 50_000, linkedAssetId: null, isActive: true, notes: '', createdAt: '', updatedAt: '' },
+      { id: 'living', type: 'expense' as const, category: '固定生活費', name: '生活費', monthlyAmount: 20_000, linkedAssetId: null, isActive: true, notes: '', createdAt: '', updatedAt: '' },
+      { id: 'paused', type: 'expense' as const, category: '其他支出', name: '暫停項目', monthlyAmount: 10_000, linkedAssetId: null, isActive: false, notes: '', createdAt: '', updatedAt: '' },
+    ]
+    const breakdown = calculateMonthlyCashFlowBreakdown(items, 10_000, 3_000, 2_000)
+
+    expect(breakdown.manualIncomeTwd).toBe(50_000)
+    expect(breakdown.manualExpenseTwd).toBe(20_000)
+    expect(breakdown.totalIncomeTwd).toBe(60_000)
+    expect(breakdown.totalExpenseTwd).toBe(25_000)
+    expect(breakdown.netCashFlowTwd).toBe(35_000)
+    expect(calculateMonthlyCashFlow([items[0]], [items[1], items[2]], 10_000, 5_000)).toBe(35_000)
+  })
+
+  it('includes dividend income and loan principal in the portfolio cash flow', () => {
+    const loan: Loan = {
+      id: 'loan-cashflow',
+      name: '現金流測試借款',
+      institution: '測試機構',
+      collateralIds: [],
+      principal: 100_000,
+      outstandingBalance: 100_000,
+      annualInterestRatePercent: 12,
+      borrowedAt: '2026-01-01',
+      maturityDate: null,
+      repaymentMethod: 'equal-principal',
+      monthlyPrincipal: 2_000,
+      monthlyInterest: 1_000,
+      warningRatioPercent: 160,
+      marginCallRatioPercent: 120,
+      notes: '',
+      createdAt: '',
+      updatedAt: '',
+    }
+    const items: CashFlowItem[] = [{ id: 'salary', type: 'income', category: '薪資', name: '薪資', monthlyAmount: 50_000, linkedAssetId: null, isActive: true, notes: '', createdAt: '', updatedAt: '' }, { id: 'expense', type: 'expense', category: '固定生活費', name: '生活費', monthlyAmount: 10_000, linkedAssetId: null, isActive: true, notes: '', createdAt: '', updatedAt: '' }]
+    const summary = calculatePortfolioSummary([stock({ shares: 1_000, currentPrice: 100, estimatedAnnualDividendPerShare: 12 })], [cash], [loan], items)
+
+    expect(summary.monthlyIncomeTwd).toBe(50_000)
+    expect(summary.monthlyExpenseTwd).toBe(10_000)
+    expect(summary.monthlyEstimatedDividendTwd).toBe(1_000)
+    expect(summary.monthlyLoanInterestTwd).toBe(1_000)
+    expect(summary.monthlyLoanPrincipalTwd).toBe(2_000)
+    expect(summary.monthlyDebtServiceTwd).toBe(3_000)
+    expect(summary.monthlyCashFlowTwd).toBe(38_000)
   })
 
   it('calculates stress-test values and maintenance ratio after a drop', () => {
