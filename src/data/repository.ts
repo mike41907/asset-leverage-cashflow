@@ -111,6 +111,14 @@ export async function deleteDividendTarget(id: string): Promise<void> {
   await deleteFromStore(STORE_NAMES.dividendTargets, id)
 }
 
+export async function saveSimulation(simulation: Simulation): Promise<void> {
+  await putInStore(STORE_NAMES.simulations, simulation)
+}
+
+export async function deleteSimulation(id: string): Promise<void> {
+  await deleteFromStore(STORE_NAMES.simulations, id)
+}
+
 export async function saveSettings(settings: AppSettings): Promise<void> {
   await putInStore(STORE_NAMES.settings, { ...settings, updatedAt: now() })
 }

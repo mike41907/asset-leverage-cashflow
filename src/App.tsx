@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AppShell } from './components/AppShell'
 import { calculatePortfolioSummary } from './domain/calculations'
-import type { AppState, AppSettings, CashAsset, CashFlowItem, Collateral, DividendTarget, Loan, PageKey, StockAsset } from './domain/models'
-import { clearDemoData, deleteCash, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteStock, loadAppState, saveCash, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSettings, saveStock } from './data/repository'
+import type { AppState, AppSettings, CashAsset, CashFlowItem, Collateral, DividendTarget, Loan, PageKey, Simulation, StockAsset } from './domain/models'
+import { clearDemoData, deleteCash, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteSimulation, deleteStock, loadAppState, saveCash, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSettings, saveSimulation, saveStock } from './data/repository'
 import { DashboardPage } from './pages/DashboardPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -109,6 +109,21 @@ export default function App() {
     setState((current) => current ? { ...current, dividendTargets: current.dividendTargets.filter((existing) => existing.id !== target.id) } : current)
   }, '被動收入目標已刪除。')
 
+  const handleSaveSimulation = (simulation: Simulation) => runAction(async () => {
+    await saveSimulation(simulation)
+    setState((current) => current ? {
+      ...current,
+      simulations: current.simulations.some((existing) => existing.id === simulation.id)
+        ? current.simulations.map((existing) => existing.id === simulation.id ? simulation : existing)
+        : [...current.simulations, simulation],
+    } : current)
+  }, '模擬方案已儲存。')
+
+  const handleDeleteSimulation = (simulation: Simulation) => runAction(async () => {
+    await deleteSimulation(simulation.id)
+    setState((current) => current ? { ...current, simulations: current.simulations.filter((existing) => existing.id !== simulation.id) } : current)
+  }, '模擬方案已刪除。')
+
   const handleSaveLoan = (loan: Loan, collaterals: Collateral[], removedCollateralIds: string[]) => runAction(async () => {
     await saveLoanBundle(loan, collaterals, removedCollateralIds)
     setState((current) => current ? {
@@ -151,7 +166,7 @@ export default function App() {
   const page = summary && activePage === 'dashboard' ? <DashboardPage state={state} summary={summary} onNavigate={setActivePage} />
     : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} />
         : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} />
-        : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} collaterals={state.collaterals} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} />
+        : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} collaterals={state.collaterals} simulations={state.simulations} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} onSaveSimulation={handleSaveSimulation} onDeleteSimulation={handleDeleteSimulation} />
           : <CashFlowPage items={state.cashFlowItems} loans={state.loans} stocks={state.stocks} targets={state.dividendTargets} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} onSaveTarget={handleSaveDividendTarget} onDeleteTarget={handleDeleteDividendTarget} />
 
   return <AppShell activePage={activePage} onNavigate={(nextPage) => { setActivePage(nextPage); setError(null) }}><div className="page-content-wrap">{page}</div>{error && <div className="toast toast-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="關閉錯誤訊息">×</button></div>}{notice && <div className="toast toast-success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="關閉成功訊息">×</button></div>}</AppShell>

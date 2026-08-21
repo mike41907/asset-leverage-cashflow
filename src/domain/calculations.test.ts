@@ -11,6 +11,7 @@ import {
   calculatePortfolioSummary,
   calculateRequiredShares,
   calculateReinvestmentSimulation,
+  calculateScenarioComparison,
   calculateStressTest,
   calculateTotalAssets,
 } from './calculations'
@@ -214,5 +215,34 @@ describe('portfolio calculations', () => {
     expect(result.after.leverageRatio).toBeCloseTo(1.333333, 5)
     expect(result.monthlyNetCashFlowTwd).toBeCloseTo(8_333.333, 2)
     expect(result.maintenanceRatioPercent).toBe(250)
+  })
+
+  it('compares a saved scenario across base, -20%, and -30% market stress', () => {
+    const result = calculateScenarioComparison({
+      base: {
+        stockMarketValueTwd: 5_000_000,
+        cashValueTwd: 1_000_000,
+        totalAssetsTwd: 6_000_000,
+        totalLiabilitiesTwd: 0,
+        netWorthTwd: 6_000_000,
+        annualEstimatedDividendTwd: 60_000,
+        monthlyCashFlowTwd: 5_000,
+        debtRatioPercent: 0,
+        leverageRatio: 1,
+      },
+      loanAmountTwd: 2_000_000,
+      annualInterestRatePercent: 3,
+      targetStock: stock({ symbol: '00878', currentPrice: 50, estimatedAnnualDividendPerShare: 2.5 }),
+      investmentAllocationPercent: 100,
+      collateralValueTwd: 5_000_000,
+      warningRatioPercent: 160,
+      marginCallRatioPercent: 120,
+    })
+
+    expect(result.simulation.after.netWorthTwd).toBe(6_000_000)
+    expect(result.stress20.netWorthTwd).toBe(4_600_000)
+    expect(result.stress20Maintenance.ratioPercent).toBeCloseTo(200, 5)
+    expect(result.stress30Maintenance.ratioPercent).toBeCloseTo(175, 5)
+    expect(result.marginCallDropPercent).toBeCloseTo(52, 5)
   })
 })

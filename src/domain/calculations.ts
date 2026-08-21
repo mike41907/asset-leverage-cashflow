@@ -2,6 +2,15 @@ import type { CashAsset, CashFlowItem, Collateral, Loan, StockAsset } from './mo
 
 export type MaintenanceStatus = 'safe' | 'warning' | 'danger' | 'unavailable'
 
+export interface MaintenanceOverview {
+  collateralValueTwd: number
+  loanBalanceTwd: number
+  ratioPercent: number
+  status: MaintenanceStatus
+  distanceToWarningPoints: number | null
+  distanceToMarginCallPoints: number | null
+}
+
 export interface CollateralSelection {
   stockAssetId: string
   pledgedShares: number
@@ -90,6 +99,26 @@ export interface ReinvestmentSimulationResult {
   distanceToMarginCallPoints: number | null
   before: SimulationSnapshot
   after: SimulationSnapshot
+}
+
+export interface ScenarioComparisonInput {
+  base: SimulationSnapshot
+  loanAmountTwd: number
+  annualInterestRatePercent: number
+  targetStock: StockAsset | null
+  investmentAllocationPercent: number
+  collateralValueTwd: number
+  warningRatioPercent: number
+  marginCallRatioPercent: number
+}
+
+export interface ScenarioComparisonResult {
+  simulation: ReinvestmentSimulationResult
+  stress20: StressTestResult
+  stress30: StressTestResult
+  stress20Maintenance: MaintenanceOverview
+  stress30Maintenance: MaintenanceOverview
+  marginCallDropPercent: number | null
 }
 
 export interface DividendTargetResult {
@@ -218,7 +247,7 @@ export function calculateMaintenanceOverview(
   loanBalanceTwd: number,
   warningRatioPercent: number,
   marginCallRatioPercent: number,
-) {
+): MaintenanceOverview {
   const ratioPercent = calculateMaintenanceRatio(collateralValueTwd, loanBalanceTwd)
   const status = calculateMaintenanceStatus(ratioPercent, warningRatioPercent, marginCallRatioPercent)
 
@@ -411,6 +440,41 @@ export function calculateReinvestmentSimulation(input: ReinvestmentSimulationInp
     distanceToMarginCallPoints: maintenanceOverview.distanceToMarginCallPoints,
     before,
     after,
+  }
+}
+
+export function calculateScenarioComparison(input: ScenarioComparisonInput): ScenarioComparisonResult {
+  const simulation = calculateReinvestmentSimulation({
+    base: input.base,
+    loanAmountTwd: input.loanAmountTwd,
+    annualInterestRatePercent: input.annualInterestRatePercent,
+    targetStock: input.targetStock,
+    investmentAllocationPercent: input.investmentAllocationPercent,
+    collateralValueTwd: input.collateralValueTwd,
+    warningRatioPercent: input.warningRatioPercent,
+    marginCallRatioPercent: input.marginCallRatioPercent,
+  })
+
+  const createStress = (dropPercent: number): StressTestResult => calculateStressTest({
+    stockMarketValueTwd: simulation.after.stockMarketValueTwd,
+    collateralValueTwd: input.collateralValueTwd,
+    totalAssetsTwd: simulation.after.totalAssetsTwd,
+    totalLiabilitiesTwd: simulation.after.totalLiabilitiesTwd,
+    loanBalanceTwd: simulation.after.totalLiabilitiesTwd,
+    dropPercent,
+  })
+  const stress20 = createStress(20)
+  const stress30 = createStress(30)
+  const stress20Maintenance = calculateMaintenanceOverview(stress20.collateralValueTwd, simulation.after.totalLiabilitiesTwd, input.warningRatioPercent, input.marginCallRatioPercent)
+  const stress30Maintenance = calculateMaintenanceOverview(stress30.collateralValueTwd, simulation.after.totalLiabilitiesTwd, input.warningRatioPercent, input.marginCallRatioPercent)
+
+  return {
+    simulation,
+    stress20,
+    stress30,
+    stress20Maintenance,
+    stress30Maintenance,
+    marginCallDropPercent: calculateMarginCallDrop(input.collateralValueTwd, simulation.after.totalLiabilitiesTwd, input.marginCallRatioPercent),
   }
 }
 

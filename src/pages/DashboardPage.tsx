@@ -46,7 +46,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.6</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.7</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -213,14 +213,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V0.6 完成項目</div>
-              <h2>把每月目標，換算成資產需求。</h2>
-              <p>現在可以用殖利率或每股配息反推所需本金，也能把借款成本納入淨領目標。</p>
+              <div className="section-kicker">V0.7 完成項目</div>
+              <h2>不要只看一個答案，先把方案放在一起。</h2>
+              <p>現在可以保存不同借款與投入配置，並比較股息、現金流與壓力後維持率。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>殖利率模式反推所需本金</div>
-                <div><span className="check-icon">✓</span>Q1–Q4 每股配息反推股數</div>
-                <div><span className="check-icon">✓</span>淨領目標納入每月借款成本</div>
-                <div><span className="check-icon">✓</span>目標保存於本機 IndexedDB</div>
+                <div><span className="check-icon">✓</span>多個借款／投資方案可保存</div>
+                <div><span className="check-icon">✓</span>基準線與方案同表比較</div>
+                <div><span className="check-icon">✓</span>-20%／-30% 維持率比較</div>
+                <div><span className="check-icon">✓</span>年度股息與每月現金流圖表</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { deleteDatabase } from './database'
-import type { CashFlowItem, Collateral, DividendTarget, Loan } from '../domain/models'
-import { clearDemoData, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, loadAppState, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveStock } from './repository'
+import type { CashFlowItem, Collateral, DividendTarget, Loan, Simulation } from '../domain/models'
+import { clearDemoData, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteSimulation, loadAppState, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSimulation, saveStock } from './repository'
 
 describe('local repository', () => {
   beforeEach(async () => {
@@ -127,5 +127,39 @@ describe('local repository', () => {
     await deleteDividendTarget(target.id)
     const deleted = await loadAppState()
     expect(deleted.dividendTargets.some((existing) => existing.id === target.id)).toBe(false)
+  })
+
+  it('persists and deletes a saved simulation scenario locally', async () => {
+    await loadAppState()
+    const simulation: Simulation = {
+      id: 'simulation-test',
+      name: '測試方案',
+      collateralStockIds: ['demo-stock-0050'],
+      loanAmount: 1_000_000,
+      annualInterestRatePercent: 3,
+      borrowingMonths: 12,
+      repaymentMethod: 'interest-only',
+      investments: [{
+        id: 'simulation-investment-test',
+        stockAssetId: 'demo-stock-00878',
+        symbol: '00878',
+        name: '國泰永續高股息',
+        price: 22,
+        amount: 1_000_000,
+        allocationPercent: 100,
+        estimatedYieldPercent: 5.45,
+        annualDividendPerShare: 1.2,
+      }],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await saveSimulation(simulation)
+    const saved = await loadAppState()
+    expect(saved.simulations).toContainEqual(simulation)
+
+    await deleteSimulation(simulation.id)
+    const deleted = await loadAppState()
+    expect(deleted.simulations.some((existing) => existing.id === simulation.id)).toBe(false)
   })
 })
