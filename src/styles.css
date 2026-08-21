@@ -251,3 +251,40 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
 @media (max-width: 470px) {
   .asset-section-summary { align-items: flex-start; }.stock-mobile-card { padding: 14px; }.stock-mobile-card-value strong { font-size: 19px; }.stock-mobile-card-footer { gap: 6px 10px; }.stock-mobile-card-collateral { width: 100%; margin-left: 0; }
 }
+
+/* V1.2.3 mobile overflow guard: every page must shrink inside the phone viewport. */
+.main-shell, .main-content, .page-content-wrap, .page-container, .page-heading, .heading-actions, .card,
+.form-grid, .form-field, .select-wrap, .input-with-suffix { min-width: 0; }
+.form-field input, .form-field select, .form-field textarea { min-width: 0; max-width: 100%; }
+
+@media (max-width: 820px) {
+  .mobile-topbar { width: 100%; max-width: 100%; margin-inline: 0; }
+  .page-content-wrap, .page-container { width: 100%; max-width: 100%; }
+  .page-heading > div, .heading-actions, .section-heading-row, .asset-toolbar, .cashflow-hero-card,
+  .cashflow-system-card, .cashflow-list-card, .passive-target-layout > *, .scenario-builder-layout > *,
+  .loan-card, .loan-card-header, .loan-card-title, .loan-card-title > div { min-width: 0; max-width: 100%; }
+  .hero-metrics > *, .metric-grid > *, .dashboard-grid > *, .cash-grid > *, .cashflow-summary-grid > *,
+  .cashflow-system-grid > *, .form-grid > *, .passive-target-layout > *, .scenario-builder-layout > *,
+  .scenario-chart-grid > *, .loan-list > * { min-width: 0; }
+  .form-field input, .form-field select, .form-field textarea, .select-wrap, .input-with-suffix { width: 100%; }
+  .select-wrap select { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page-view-switch, .cashflow-view-switch { width: 100%; min-width: 0; }
+  .page-view-switch button, .cashflow-view-switch button { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .passive-target-intro-card, .passive-target-controls-card, .passive-target-result-card, .passive-target-saved-card,
+  .passive-target-main-result, .passive-target-current-card, .passive-target-result-grid > div,
+  .passive-target-selected-asset, .passive-target-note, .passive-target-formula { min-width: 0; max-width: 100%; }
+  .passive-target-intro-card > div, .passive-target-section-heading > div, .passive-target-control-group,
+  .passive-target-control-label, .passive-target-current-card > div, .passive-target-formula > span:last-child,
+  .passive-target-note > span { min-width: 0; }
+  .passive-target-main-result strong, .passive-target-result-grid strong, .passive-target-current-card strong {
+    max-width: 100%; overflow-wrap: anywhere; word-break: break-word;
+  }
+}
+
+@media (max-width: 470px) {
+  .form-field > span { min-width: 0; flex-wrap: wrap; }
+  .form-field > span small { max-width: 100%; }
+  .passive-target-control-label small { max-width: 100%; overflow-wrap: anywhere; }
+  .passive-target-mode-badge { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+  .passive-target-current-card > div { min-width: 0; }
+}
