@@ -12,7 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import type { AppSettings, Collateral, Loan, RepaymentMethod, Simulation, StockAsset } from '../domain/models'
+import type { AppSettings, Collateral, Liability, Loan, RealEstateAsset, RepaymentMethod, Simulation, StockAsset } from '../domain/models'
 import {
   calculateCollateralSelectionsValueTwd,
   calculateCollateralValueTwd,
@@ -28,10 +28,13 @@ import { EmptyState } from '../components/EmptyState'
 import { ReinvestmentSimulator } from '../components/ReinvestmentSimulator'
 import { StressTestPanel } from '../components/StressTestPanel'
 import { ScenarioComparison } from '../components/ScenarioComparison'
+import { GeneralLiabilitiesPanel } from '../components/GeneralLiabilitiesPanel'
 
 interface LoanManagementPageProps {
   stocks: StockAsset[]
   loans: Loan[]
+  liabilities: Liability[]
+  realEstate: RealEstateAsset[]
   collaterals: Collateral[]
   simulations: Simulation[]
   settings: AppSettings
@@ -39,6 +42,8 @@ interface LoanManagementPageProps {
   displayMode: 'exact' | 'compact'
   onSaveLoan: (loan: Loan, collaterals: Collateral[], removedCollateralIds: string[]) => Promise<void>
   onDeleteLoan: (loan: Loan) => Promise<void>
+  onSaveLiability: (liability: Liability) => Promise<void>
+  onDeleteLiability: (id: string) => Promise<void>
   onSaveSimulation: (simulation: Simulation) => Promise<void>
   onDeleteSimulation: (simulation: Simulation) => Promise<void>
 }
@@ -163,8 +168,8 @@ function loanDraftFrom(loan: Loan, collaterals: Collateral[]): LoanDraft {
   }
 }
 
-export function LoanManagementPage({ stocks, loans, collaterals, simulations, settings, summary, displayMode, onSaveLoan, onDeleteLoan, onSaveSimulation, onDeleteSimulation }: LoanManagementPageProps) {
-  const [activeView, setActiveView] = useState<'simulation' | 'stress' | 'loans' | 'scenarios'>('simulation')
+export function LoanManagementPage({ stocks, loans, liabilities, realEstate, collaterals, simulations, settings, summary, displayMode, onSaveLoan, onDeleteLoan, onSaveLiability, onDeleteLiability, onSaveSimulation, onDeleteSimulation }: LoanManagementPageProps) {
+  const [activeView, setActiveView] = useState<'simulation' | 'stress' | 'loans' | 'liabilities' | 'scenarios'>('simulation')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null)
   const [draft, setDraft] = useState<LoanDraft>(createDefaultLoanDraft)
@@ -265,9 +270,9 @@ export function LoanManagementPage({ stocks, loans, collaterals, simulations, se
     <div className="page-container loan-page">
       <section className="page-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'simulation' ? '投資模擬 / V0.3' : activeView === 'stress' ? '市場壓力測試 / V0.4' : activeView === 'scenarios' ? '多情境比較 / V0.7' : '質押風控 / V0.2'}</div>
-          <h1>{activeView === 'simulation' ? <>借款先試算，<span>再決定要不要放大。</span></> : activeView === 'stress' ? <>先問最壞情境，<span>再決定槓桿上限。</span></> : activeView === 'scenarios' ? <>不要只看一個答案，<span>把方案放在同一張表。</span></> : <>把槓桿，<span>放在可控範圍內。</span></>}</h1>
-          <p>{activeView === 'simulation' ? '把質押借款投入股票，先比較操作前後的資產、負債、槓桿與現金流。' : activeView === 'stress' ? '把市場跌幅套入目前資產，先看懂維持率與淨資產的風險距離。' : activeView === 'scenarios' ? '保存不同借款與投資配置，並比較年度股息、每月現金流與壓力後維持率。' : '記錄借款餘額、利息與擔保品，先看懂維持率，再決定是否擴大投資。'}</p>
+          <div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'simulation' ? '投資模擬 / V0.3' : activeView === 'stress' ? '市場壓力測試 / V0.4' : activeView === 'scenarios' ? '多情境比較 / V0.7' : activeView === 'liabilities' ? '家庭負債 / V1.2' : '質押風控 / V0.2'}</div>
+          <h1>{activeView === 'simulation' ? <>借款先試算，<span>再決定要不要放大。</span></> : activeView === 'stress' ? <>先問最壞情境，<span>再決定槓桿上限。</span></> : activeView === 'scenarios' ? <>不要只看一個答案，<span>把方案放在同一張表。</span></> : activeView === 'liabilities' ? <>把家庭負債，<span>放進每月現金流。</span></> : <>把槓桿，<span>放在可控範圍內。</span></>}</h1>
+          <p>{activeView === 'simulation' ? '把質押借款投入股票，先比較操作前後的資產、負債、槓桿與現金流。' : activeView === 'stress' ? '把市場跌幅套入目前資產，先看懂維持率與淨資產的風險距離。' : activeView === 'scenarios' ? '保存不同借款與投資配置，並比較年度股息、每月現金流與壓力後維持率。' : activeView === 'liabilities' ? '記錄房貸、車貸與其他固定還款，讓淨資產與月支出更接近家庭現況。' : '記錄借款餘額、利息與擔保品，先看懂維持率，再決定是否擴大投資。'}</p>
         </div>
         <div className="heading-actions">
           <span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span>
@@ -276,12 +281,13 @@ export function LoanManagementPage({ stocks, loans, collaterals, simulations, se
             <button type="button" role="tab" aria-selected={activeView === 'stress'} className={activeView === 'stress' ? 'is-active' : ''} onClick={() => { setActiveView('stress'); setModalOpen(false) }}>壓力測試</button>
             <button type="button" role="tab" aria-selected={activeView === 'scenarios'} className={activeView === 'scenarios' ? 'is-active' : ''} onClick={() => { setActiveView('scenarios'); setModalOpen(false) }}>方案比較</button>
             <button type="button" role="tab" aria-selected={activeView === 'loans'} className={activeView === 'loans' ? 'is-active' : ''} onClick={() => setActiveView('loans')}>借款管理</button>
+            <button type="button" role="tab" aria-selected={activeView === 'liabilities'} className={activeView === 'liabilities' ? 'is-active' : ''} onClick={() => { setActiveView('liabilities'); setModalOpen(false) }}>一般負債</button>
           </div>
           {activeView === 'loans' && <button type="button" className="button button-primary" onClick={openNewLoan}><Plus size={17} />新增質押借款</button>}
         </div>
       </section>
 
-      {activeView === 'simulation' ? <ReinvestmentSimulator stocks={stocks} settings={settings} summary={summary} displayMode={displayMode} /> : activeView === 'stress' ? <StressTestPanel stocks={stocks} loans={loans} collaterals={collaterals} settings={settings} summary={summary} displayMode={displayMode} /> : activeView === 'scenarios' ? <ScenarioComparison stocks={stocks} simulations={simulations} settings={settings} summary={summary} displayMode={displayMode} onSaveSimulation={onSaveSimulation} onDeleteSimulation={onDeleteSimulation} /> : <>
+      {activeView === 'simulation' ? <ReinvestmentSimulator stocks={stocks} settings={settings} summary={summary} displayMode={displayMode} /> : activeView === 'stress' ? <StressTestPanel stocks={stocks} loans={loans} collaterals={collaterals} settings={settings} summary={summary} displayMode={displayMode} /> : activeView === 'scenarios' ? <ScenarioComparison stocks={stocks} simulations={simulations} settings={settings} summary={summary} displayMode={displayMode} onSaveSimulation={onSaveSimulation} onDeleteSimulation={onDeleteSimulation} /> : activeView === 'liabilities' ? <GeneralLiabilitiesPanel liabilities={liabilities} realEstate={realEstate} displayMode={displayMode} onSave={onSaveLiability} onDelete={onDeleteLiability} /> : <>
       <section className={`risk-overview-card card ${statusClass(overview.status)}`}>
         <div className="risk-overview-top">
           <div>

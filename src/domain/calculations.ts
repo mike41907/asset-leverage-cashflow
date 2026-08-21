@@ -1,4 +1,4 @@
-import type { CashAsset, CashFlowItem, Collateral, Loan, StockAsset } from './models'
+import type { CashAsset, CashFlowItem, Collateral, Liability, Loan, RealEstateAsset, StockAsset } from './models'
 
 export type MaintenanceStatus = 'safe' | 'warning' | 'danger' | 'unavailable'
 
@@ -19,15 +19,18 @@ export interface CollateralSelection {
 export interface PortfolioSummary {
   stockMarketValueTwd: number
   cashValueTwd: number
+  realEstateValueTwd: number
   totalAssetsTwd: number
   totalLiabilitiesTwd: number
   netWorthTwd: number
   annualEstimatedDividendTwd: number
   monthlyEstimatedDividendTwd: number
+  monthlyRentalIncomeTwd: number
   monthlyIncomeTwd: number
   monthlyExpenseTwd: number
   monthlyLoanInterestTwd: number
   monthlyLoanPrincipalTwd: number
+  monthlyLiabilityPaymentTwd: number
   monthlyDebtServiceTwd: number
   monthlyCashFlowTwd: number
   debtRatioPercent: number
@@ -137,8 +140,10 @@ export interface MonthlyCashFlowBreakdown {
   manualIncomeTwd: number
   manualExpenseTwd: number
   investmentIncomeTwd: number
+  rentalIncomeTwd: number
   loanInterestTwd: number
   loanPrincipalTwd: number
+  liabilityPaymentTwd: number
   totalIncomeTwd: number
   totalExpenseTwd: number
   netCashFlowTwd: number
@@ -171,6 +176,10 @@ export function calculateStockUnrealizedGainPercent(stock: StockAsset): number |
 
 export function calculateCashValue(cash: CashAsset): number {
   return finitePositive(cash.amount) * finitePositive(cash.exchangeRateToTwd || 1)
+}
+
+export function calculateRealEstateValueTwd(asset: RealEstateAsset): number {
+  return finitePositive(asset.currentValueTwd)
 }
 
 export function calculateCollateralValueTwd(collateral: Collateral, stocks: readonly StockAsset[]): number {
@@ -211,8 +220,9 @@ export function calculateTotalAssets(
   stocks: readonly StockAsset[],
   cash: readonly CashAsset[],
   additionalAssetValueTwd = 0,
+  realEstate: readonly RealEstateAsset[] = [],
 ): number {
-  return sum(stocks.map(calculateStockMarketValue)) + sum(cash.map(calculateCashValue)) + finitePositive(additionalAssetValueTwd)
+  return sum(stocks.map(calculateStockMarketValue)) + sum(cash.map(calculateCashValue)) + sum(realEstate.map(calculateRealEstateValueTwd)) + finitePositive(additionalAssetValueTwd)
 }
 
 export function calculateNetWorth(totalAssetsTwd: number, totalLiabilitiesTwd: number): number {
@@ -281,21 +291,27 @@ export function calculateMonthlyCashFlowBreakdown(
   investmentIncomeTwd = 0,
   loanInterestTwd = 0,
   loanPrincipalTwd = 0,
+  liabilityPaymentTwd = 0,
+  rentalIncomeTwd = 0,
 ): MonthlyCashFlowBreakdown {
   const manualIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
   const manualExpenseTwd = sum(cashFlowItems.filter((item) => item.type === 'expense' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
   const safeInvestmentIncomeTwd = finitePositive(investmentIncomeTwd)
   const safeLoanInterestTwd = finitePositive(loanInterestTwd)
   const safeLoanPrincipalTwd = finitePositive(loanPrincipalTwd)
-  const totalIncomeTwd = manualIncomeTwd + safeInvestmentIncomeTwd
-  const totalExpenseTwd = manualExpenseTwd + safeLoanInterestTwd + safeLoanPrincipalTwd
+  const safeLiabilityPaymentTwd = finitePositive(liabilityPaymentTwd)
+  const safeRentalIncomeTwd = finitePositive(rentalIncomeTwd)
+  const totalIncomeTwd = manualIncomeTwd + safeInvestmentIncomeTwd + safeRentalIncomeTwd
+  const totalExpenseTwd = manualExpenseTwd + safeLoanInterestTwd + safeLoanPrincipalTwd + safeLiabilityPaymentTwd
 
   return {
     manualIncomeTwd,
     manualExpenseTwd,
     investmentIncomeTwd: safeInvestmentIncomeTwd,
+    rentalIncomeTwd: safeRentalIncomeTwd,
     loanInterestTwd: safeLoanInterestTwd,
     loanPrincipalTwd: safeLoanPrincipalTwd,
+    liabilityPaymentTwd: safeLiabilityPaymentTwd,
     totalIncomeTwd,
     totalExpenseTwd,
     netCashFlowTwd: totalIncomeTwd - totalExpenseTwd,
@@ -486,37 +502,45 @@ export function calculatePortfolioSummary(
   collaterals: readonly Collateral[] = [],
   warningRatioPercent = 160,
   marginCallRatioPercent = 120,
+  realEstate: readonly RealEstateAsset[] = [],
+  liabilities: readonly Liability[] = [],
 ): PortfolioSummary {
   const stockMarketValueTwd = sum(stocks.map(calculateStockMarketValue))
   const cashValueTwd = sum(cash.map(calculateCashValue))
-  const totalAssetsTwd = calculateTotalAssets(stocks, cash)
-  const totalLiabilitiesTwd = sum(loans.map((loan) => finitePositive(loan.outstandingBalance)))
+  const realEstateValueTwd = sum(realEstate.map(calculateRealEstateValueTwd))
+  const totalAssetsTwd = calculateTotalAssets(stocks, cash, 0, realEstate)
+  const totalLiabilitiesTwd = sum(loans.map((loan) => finitePositive(loan.outstandingBalance))) + sum(liabilities.filter((liability) => liability.isActive).map((liability) => finitePositive(liability.outstandingBalance)))
   const netWorthTwd = calculateNetWorth(totalAssetsTwd, totalLiabilitiesTwd)
   const annualEstimatedDividendTwd = sum(stocks.map(calculateAnnualDividendTwd))
   const monthlyEstimatedDividendTwd = annualEstimatedDividendTwd / 12
-  const monthlyIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
+  const monthlyRentalIncomeTwd = sum(realEstate.map((asset) => finitePositive(asset.monthlyRentalIncomeTwd)))
+  const monthlyIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map((item) => finitePositive(item.monthlyAmount))) + monthlyRentalIncomeTwd
   const monthlyExpenseTwd = sum(cashFlowItems.filter((item) => item.type === 'expense' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
   const monthlyLoanInterestTwd = sum(
     loans.map((loan) => loan.monthlyInterest > 0 ? loan.monthlyInterest : calculateMonthlyLoanInterest(loan.outstandingBalance, loan.annualInterestRatePercent)),
   )
   const monthlyLoanPrincipalTwd = sum(loans.map((loan) => finitePositive(loan.monthlyPrincipal)))
-  const monthlyDebtServiceTwd = monthlyLoanInterestTwd + monthlyLoanPrincipalTwd
+  const monthlyLiabilityPaymentTwd = sum(liabilities.filter((liability) => liability.isActive).map((liability) => finitePositive(liability.monthlyPayment)))
+  const monthlyDebtServiceTwd = monthlyLoanInterestTwd + monthlyLoanPrincipalTwd + monthlyLiabilityPaymentTwd
   const collateralValueTwd = calculateTotalCollateralValueTwd(collaterals, stocks)
   const maintenanceOverview = calculateMaintenanceOverview(collateralValueTwd, totalLiabilitiesTwd, warningRatioPercent, marginCallRatioPercent)
-  const monthlyCashFlowBreakdown = calculateMonthlyCashFlowBreakdown(cashFlowItems, monthlyEstimatedDividendTwd, monthlyLoanInterestTwd, monthlyLoanPrincipalTwd)
+  const monthlyCashFlowBreakdown = calculateMonthlyCashFlowBreakdown(cashFlowItems, monthlyEstimatedDividendTwd, monthlyLoanInterestTwd, monthlyLoanPrincipalTwd, monthlyLiabilityPaymentTwd, monthlyRentalIncomeTwd)
 
   return {
     stockMarketValueTwd,
     cashValueTwd,
+    realEstateValueTwd,
     totalAssetsTwd,
     totalLiabilitiesTwd,
     netWorthTwd,
     annualEstimatedDividendTwd,
     monthlyEstimatedDividendTwd,
+    monthlyRentalIncomeTwd,
     monthlyIncomeTwd,
     monthlyExpenseTwd,
     monthlyLoanInterestTwd,
     monthlyLoanPrincipalTwd,
+    monthlyLiabilityPaymentTwd,
     monthlyDebtServiceTwd,
     monthlyCashFlowTwd: monthlyCashFlowBreakdown.netCashFlowTwd,
     debtRatioPercent: totalAssetsTwd > 0 ? (totalLiabilitiesTwd / totalAssetsTwd) * 100 : 0,

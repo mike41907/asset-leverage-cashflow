@@ -1,14 +1,16 @@
-export const CURRENT_SCHEMA_VERSION = 1 as const
+export const CURRENT_SCHEMA_VERSION = 2 as const
 
 export type Currency = 'TWD' | 'USD'
 export type Market = 'TW' | 'US' | 'OTHER'
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type NumberDisplayMode = 'exact' | 'compact'
-export type AssetKind = 'stock' | 'cash' | 'other'
+export type AssetKind = 'stock' | 'cash' | 'real-estate' | 'other'
 export type CashFlowType = 'income' | 'expense'
 export type RepaymentMethod = 'interest-only' | 'equal-principal' | 'amortized'
 export type DividendIncomeMode = 'gross' | 'net'
 export type StockPriceSource = 'manual' | 'yahoo-public'
+export type RealEstateType = 'residential' | 'commercial' | 'land' | 'other'
+export type LiabilityType = 'mortgage' | 'car-loan' | 'personal-loan' | 'credit' | 'other'
 
 export interface Asset {
   id: string
@@ -45,6 +47,34 @@ export interface CashAsset extends Asset {
   amount: number
   exchangeRateToTwd: number
   notes: string
+}
+
+export interface RealEstateAsset extends Asset {
+  kind: 'real-estate'
+  name: string
+  propertyType: RealEstateType
+  currentValueTwd: number
+  purchasePriceTwd: number
+  monthlyRentalIncomeTwd: number
+  notes: string
+}
+
+export interface Liability {
+  id: string
+  type: LiabilityType
+  name: string
+  institution: string
+  linkedAssetId: string | null
+  principal: number
+  outstandingBalance: number
+  annualInterestRatePercent: number
+  monthlyPayment: number
+  borrowedAt: string
+  maturityDate: string | null
+  isActive: boolean
+  notes: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Loan {
@@ -154,7 +184,9 @@ export interface BackupData {
   exportedAt: string
   stocks: StockAsset[]
   cash: CashAsset[]
+  realEstate: RealEstateAsset[]
   loans: Loan[]
+  liabilities: Liability[]
   collaterals: Collateral[]
   cashFlowItems: CashFlowItem[]
   simulations: Simulation[]
@@ -165,7 +197,9 @@ export interface BackupData {
 export interface AppState {
   stocks: StockAsset[]
   cash: CashAsset[]
+  realEstate: RealEstateAsset[]
   loans: Loan[]
+  liabilities: Liability[]
   collaterals: Collateral[]
   cashFlowItems: CashFlowItem[]
   simulations: Simulation[]

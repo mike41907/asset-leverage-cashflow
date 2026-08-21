@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { ArrowDownRight, ArrowUpRight, Check, CircleDollarSign, Edit3, Info, Plus, ReceiptText, ShieldCheck, Trash2, X } from 'lucide-react'
-import type { CashFlowItem, CashFlowType, DividendTarget, Loan, StockAsset } from '../domain/models'
+import type { CashFlowItem, CashFlowType, DividendTarget, Liability, Loan, StockAsset } from '../domain/models'
 import { calculateMonthlyCashFlowBreakdown, type PortfolioSummary } from '../domain/calculations'
 import { formatCurrencyWithSign, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
@@ -9,6 +9,7 @@ import { PassiveIncomeTarget } from '../components/PassiveIncomeTarget'
 interface CashFlowPageProps {
   items: CashFlowItem[]
   loans: Loan[]
+  liabilities: Liability[]
   stocks: StockAsset[]
   targets: DividendTarget[]
   summary: PortfolioSummary
@@ -29,7 +30,7 @@ interface CashFlowDraft {
 }
 
 const incomeCategories = ['薪資', '租金', '利息收入', '其他收入']
-const expenseCategories = ['房貸', '車貸', '信貸', '保險', '固定生活費', '醫療', '教育', '其他支出']
+const expenseCategories = ['房貸', '捐款', '稅費', '車貸', '信貸', '保險', '固定生活費', '醫療', '教育', '其他支出']
 
 function categoriesFor(type: CashFlowType): string[] {
   return type === 'income' ? incomeCategories : expenseCategories
@@ -120,12 +121,12 @@ function CashFlowItemModal({ item, initialType, onClose, onSave }: { item: CashF
   )
 }
 
-export function CashFlowPage({ items, loans, stocks, targets, summary, displayMode, onSaveItem, onDeleteItem, onSaveTarget, onDeleteTarget }: CashFlowPageProps) {
+export function CashFlowPage({ items, loans, liabilities, stocks, targets, summary, displayMode, onSaveItem, onDeleteItem, onSaveTarget, onDeleteTarget }: CashFlowPageProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<CashFlowItem | null>(null)
   const [newItemType, setNewItemType] = useState<CashFlowType>('income')
   const [activeView, setActiveView] = useState<'cashflow' | 'target'>('cashflow')
-  const breakdown = useMemo(() => calculateMonthlyCashFlowBreakdown(items, summary.monthlyEstimatedDividendTwd, summary.monthlyLoanInterestTwd, summary.monthlyLoanPrincipalTwd), [items, summary.monthlyEstimatedDividendTwd, summary.monthlyLoanInterestTwd, summary.monthlyLoanPrincipalTwd])
+  const breakdown = useMemo(() => calculateMonthlyCashFlowBreakdown(items, summary.monthlyEstimatedDividendTwd, summary.monthlyLoanInterestTwd, summary.monthlyLoanPrincipalTwd, summary.monthlyLiabilityPaymentTwd, summary.monthlyRentalIncomeTwd), [items, summary.monthlyEstimatedDividendTwd, summary.monthlyLoanInterestTwd, summary.monthlyLoanPrincipalTwd, summary.monthlyLiabilityPaymentTwd, summary.monthlyRentalIncomeTwd])
 
   const openNew = (type: CashFlowType) => {
     setEditingItem(null)
@@ -156,19 +157,19 @@ export function CashFlowPage({ items, loans, stocks, targets, summary, displayMo
 
       {activeView === 'target' ? <PassiveIncomeTarget stocks={stocks} summary={summary} targets={targets} displayMode={displayMode} onSaveTarget={onSaveTarget} onDeleteTarget={onDeleteTarget} /> : <>
       <section className={`card cashflow-hero-card ${breakdown.netCashFlowTwd >= 0 ? 'is-positive' : 'is-negative'}`}>
-        <div className="cashflow-hero-main"><div className="section-kicker">每月自由現金流</div><div className="cashflow-hero-value">{formatCurrencyWithSign(breakdown.netCashFlowTwd, displayMode)}</div><p>所有收入 − 所有支出；股息、借款利息與本金會依目前資料自動帶入。</p></div>
-        <div className="cashflow-summary-grid"><div><span>每月總收入</span><strong className="positive-text">{formatTwd(breakdown.totalIncomeTwd, displayMode)}</strong><small>手動收入＋股息</small></div><div><span>投資收入</span><strong className="positive-text">{formatTwd(breakdown.investmentIncomeTwd, displayMode)}</strong><small>股票／ETF 股息</small></div><div><span>每月總支出</span><strong className="negative-text">{formatTwd(breakdown.totalExpenseTwd, displayMode)}</strong><small>生活費＋借款成本</small></div><div><span>借款成本</span><strong className="negative-text">{formatTwd(breakdown.loanInterestTwd + breakdown.loanPrincipalTwd, displayMode)}</strong><small>利息＋本金</small></div></div>
+        <div className="cashflow-hero-main"><div className="section-kicker">每月自由現金流</div><div className="cashflow-hero-value">{formatCurrencyWithSign(breakdown.netCashFlowTwd, displayMode)}</div><p>所有收入 − 所有支出；股息、房租與借款付款會依目前資料自動帶入。</p></div>
+        <div className="cashflow-summary-grid"><div><span>每月總收入</span><strong className="positive-text">{formatTwd(breakdown.totalIncomeTwd, displayMode)}</strong><small>手動收入＋股息＋房租</small></div><div><span>投資收入</span><strong className="positive-text">{formatTwd(breakdown.investmentIncomeTwd + breakdown.rentalIncomeTwd, displayMode)}</strong><small>股票股息＋房租</small></div><div><span>每月總支出</span><strong className="negative-text">{formatTwd(breakdown.totalExpenseTwd, displayMode)}</strong><small>固定支出＋借款付款</small></div><div><span>借款成本</span><strong className="negative-text">{formatTwd(breakdown.loanInterestTwd + breakdown.loanPrincipalTwd + breakdown.liabilityPaymentTwd, displayMode)}</strong><small>質押＋房貸／負債</small></div></div>
       </section>
 
       <section className="card cashflow-system-card">
         <div className="section-heading-row"><div><div className="section-kicker">系統自動帶入</div><h2>股息與借款成本，不再藏在總數裡。</h2></div><CircleDollarSign size={19} className="cashflow-system-icon" /></div>
-        <div className="cashflow-system-grid"><div className="cashflow-system-item system-income"><span>股票／ETF 股息</span><strong>{formatSignedAmount(breakdown.investmentIncomeTwd, displayMode)}</strong><small>年度預估股息 ÷ 12</small></div><div className="cashflow-system-item system-expense"><span>質押利息</span><strong>{formatSignedAmount(-breakdown.loanInterestTwd, displayMode)}</strong><small>{loans.length > 0 ? `目前 ${loans.length} 筆借款` : '尚未建立借款'}</small></div><div className="cashflow-system-item system-expense"><span>質押本金</span><strong>{formatSignedAmount(-breakdown.loanPrincipalTwd, displayMode)}</strong><small>依借款設定的每月本金</small></div></div>
-        <div className="cashflow-system-note"><Info size={15} /><span>這些項目會隨股票現價、預估配息與借款餘額更新；不要再把同一筆利息或本金手動新增一次，避免重複計算。</span></div>
+        <div className="cashflow-system-grid"><div className="cashflow-system-item system-income"><span>股票／ETF 股息</span><strong>{formatSignedAmount(breakdown.investmentIncomeTwd, displayMode)}</strong><small>年度預估股息 ÷ 12</small></div><div className="cashflow-system-item system-income"><span>房租收入</span><strong>{formatSignedAmount(breakdown.rentalIncomeTwd, displayMode)}</strong><small>依房產每月租金設定</small></div><div className="cashflow-system-item system-expense"><span>質押利息</span><strong>{formatSignedAmount(-breakdown.loanInterestTwd, displayMode)}</strong><small>{loans.length > 0 ? `目前 ${loans.length} 筆借款` : '尚未建立借款'}</small></div><div className="cashflow-system-item system-expense"><span>質押本金</span><strong>{formatSignedAmount(-breakdown.loanPrincipalTwd, displayMode)}</strong><small>依借款設定的每月本金</small></div><div className="cashflow-system-item system-expense"><span>一般負債／房貸</span><strong>{formatSignedAmount(-breakdown.liabilityPaymentTwd, displayMode)}</strong><small>{liabilities.filter((item) => item.isActive).length > 0 ? `目前 ${liabilities.filter((item) => item.isActive).length} 筆啟用中` : '尚未建立房貸或一般負債'}</small></div></div>
+        <div className="cashflow-system-note"><Info size={15} /><span>股息、質押成本與一般負債付款會依目前資料自動更新；已建立房貸後，不要再把同一筆房貸手動新增一次，避免重複計算。</span></div>
       </section>
 
       <div className="cashflow-lists-grid"><CashFlowList type="income" items={items} displayMode={displayMode} onAdd={() => openNew('income')} onEdit={openEdit} onDelete={handleDelete} onToggle={handleToggle} /><CashFlowList type="expense" items={items} displayMode={displayMode} onAdd={() => openNew('expense')} onEdit={openEdit} onDelete={handleDelete} onToggle={handleToggle} /></div>
 
-      <div className="formula-note"><span className="formula-note-mark">Σ</span><span><strong>本頁計算原則：</strong>每月淨現金流 = 手動收入 + 股票／ETF 股息 − 手動支出 − 質押利息 − 質押本金；停用的手動項目不會列入計算。</span></div>
+      <div className="formula-note"><span className="formula-note-mark">Σ</span><span><strong>本頁計算原則：</strong>每月淨現金流 = 手動收入 + 股票／ETF 股息 − 固定支出 − 質押利息 − 質押本金 − 一般負債付款；停用的項目不會列入計算。</span></div>
 
       {modalOpen && <CashFlowItemModal key={editingItem?.id ?? `new-${newItemType}`} item={editingItem} initialType={newItemType} onClose={() => setModalOpen(false)} onSave={onSaveItem} />}
       </>}

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AppShell } from './components/AppShell'
 import { calculatePortfolioSummary } from './domain/calculations'
-import type { AppState, AppSettings, BackupData, CashAsset, CashFlowItem, Collateral, DividendTarget, Loan, PageKey, Simulation, StockAsset } from './domain/models'
+import type { AppState, AppSettings, BackupData, CashAsset, CashFlowItem, Collateral, DividendTarget, Liability, Loan, PageKey, RealEstateAsset, Simulation, StockAsset } from './domain/models'
 import { backupToAppState, createBackupData, mergeBackupIntoAppState, serializeBackupData, type BackupImportMode } from './data/backup'
-import { clearDemoData, deleteCash, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteSimulation, deleteStock, loadAppState, replaceAppState, saveAppState, saveCash, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSettings, saveSimulation, saveStock } from './data/repository'
+import { clearDemoData, deleteCash, deleteCashFlowItem, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, deleteStock, loadAppState, replaceAppState, saveAppState, saveCash, saveCashFlowItem, saveDividendTarget, saveLiability, saveLoanBundle, saveRealEstate, saveSettings, saveSimulation, saveStock } from './data/repository'
 import { DashboardPage } from './pages/DashboardPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -62,6 +62,8 @@ export default function App() {
     state.collaterals,
     state.settings.maintenanceWarningRatioPercent,
     state.settings.maintenanceMarginCallRatioPercent,
+    state.realEstate,
+    state.liabilities,
   ) : null, [state])
 
   const runAction = async (action: () => Promise<void>, successMessage: string) => {
@@ -101,6 +103,26 @@ export default function App() {
     await deleteCash(id)
     setState((current) => current ? { ...current, cash: current.cash.filter((item) => item.id !== id) } : current)
   }, '現金資產已刪除。')
+
+  const handleSaveRealEstate = (asset: RealEstateAsset) => runAction(async () => {
+    await saveRealEstate(asset)
+    setState((current) => current ? { ...current, realEstate: current.realEstate.some((item) => item.id === asset.id) ? current.realEstate.map((item) => item.id === asset.id ? asset : item) : [...current.realEstate, asset] } : current)
+  }, '房產資產已儲存。')
+
+  const handleDeleteRealEstate = (id: string) => runAction(async () => {
+    await deleteRealEstate(id)
+    setState((current) => current ? { ...current, realEstate: current.realEstate.filter((item) => item.id !== id) } : current)
+  }, '房產資產已刪除。')
+
+  const handleSaveLiability = (liability: Liability) => runAction(async () => {
+    await saveLiability(liability)
+    setState((current) => current ? { ...current, liabilities: current.liabilities.some((item) => item.id === liability.id) ? current.liabilities.map((item) => item.id === liability.id ? liability : item) : [...current.liabilities, liability] } : current)
+  }, '一般負債已儲存。')
+
+  const handleDeleteLiability = (id: string) => runAction(async () => {
+    await deleteLiability(id)
+    setState((current) => current ? { ...current, liabilities: current.liabilities.filter((item) => item.id !== id) } : current)
+  }, '一般負債已刪除。')
 
   const handleSaveCashFlowItem = (item: CashFlowItem) => runAction(async () => {
     await saveCashFlowItem(item)
@@ -205,10 +227,10 @@ export default function App() {
   }
 
   const page = summary && activePage === 'dashboard' ? <DashboardPage state={state} summary={summary} onNavigate={setActivePage} />
-    : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onSaveStocks={handleSaveStocks} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} />
-        : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />
-        : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} collaterals={state.collaterals} simulations={state.simulations} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} onSaveSimulation={handleSaveSimulation} onDeleteSimulation={handleDeleteSimulation} />
-          : <CashFlowPage items={state.cashFlowItems} loans={state.loans} stocks={state.stocks} targets={state.dividendTargets} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} onSaveTarget={handleSaveDividendTarget} onDeleteTarget={handleDeleteDividendTarget} />
+    : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} realEstate={state.realEstate} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onSaveStocks={handleSaveStocks} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} onSaveRealEstate={handleSaveRealEstate} onDeleteRealEstate={handleDeleteRealEstate} />
+        : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo) || state.realEstate.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />
+        : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} liabilities={state.liabilities} realEstate={state.realEstate} collaterals={state.collaterals} simulations={state.simulations} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent, state.realEstate, state.liabilities)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} onSaveLiability={handleSaveLiability} onDeleteLiability={handleDeleteLiability} onSaveSimulation={handleSaveSimulation} onDeleteSimulation={handleDeleteSimulation} />
+          : <CashFlowPage items={state.cashFlowItems} loans={state.loans} liabilities={state.liabilities} stocks={state.stocks} targets={state.dividendTargets} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent, state.realEstate, state.liabilities)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} onSaveTarget={handleSaveDividendTarget} onDeleteTarget={handleDeleteDividendTarget} />
 
   return <AppShell activePage={activePage} onNavigate={(nextPage) => { setActivePage(nextPage); setError(null) }}><div className="page-content-wrap">{page}</div>{error && <div className="toast toast-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="關閉錯誤訊息">×</button></div>}{notice && <div className="toast toast-success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="關閉成功訊息">×</button></div>}</AppShell>
 }

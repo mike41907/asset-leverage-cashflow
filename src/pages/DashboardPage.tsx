@@ -29,11 +29,12 @@ interface DashboardPageProps {
 
 export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps) {
   const displayMode = state.settings.numberDisplayMode
-  const hasAssets = state.stocks.length > 0 || state.cash.length > 0
+  const hasAssets = state.stocks.length > 0 || state.cash.length > 0 || state.realEstate.length > 0
   const hasLoans = state.loans.length > 0
   const totalAssets = summary.totalAssetsTwd || 1
   const stockShare = (summary.stockMarketValueTwd / totalAssets) * 100
   const cashShare = (summary.cashValueTwd / totalAssets) * 100
+  const realEstateShare = (summary.realEstateValueTwd / totalAssets) * 100
   const topStocks = [...state.stocks]
     .sort((left, right) => calculateStockMarketValue(right) - calculateStockMarketValue(left))
     .slice(0, 4)
@@ -46,7 +47,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.1.1</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.2.0</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -81,6 +82,8 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                   <span>淨資產 {formatTwd(summary.netWorthTwd, displayMode)}</span>
                   <span className="meta-divider" />
                   <span>負債 {formatTwd(summary.totalLiabilitiesTwd, displayMode)}</span>
+                  <span className="meta-divider" />
+                  <span>房產 {formatTwd(summary.realEstateValueTwd, displayMode)}</span>
                 </div>
               </div>
               <div className="primary-card-chart" aria-hidden="true">
@@ -136,7 +139,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                 <span className="section-caption">TWD</span>
               </div>
               <div className="mix-visual">
-                <div className="donut-chart" style={{ '--stock-share': `${Math.min(100, stockShare)}%` } as React.CSSProperties}>
+                <div className="donut-chart" style={{ '--stock-share': `${Math.min(100, stockShare)}%`, '--cash-share': `${Math.min(100, cashShare)}%` } as React.CSSProperties}>
                   <div className="donut-center">
                     <strong>{Math.round(stockShare)}%</strong>
                     <span>股票</span>
@@ -153,13 +156,19 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                     <div><strong>現金</strong><span>{formatTwd(summary.cashValueTwd, displayMode)}</span></div>
                     <em>{formatPercent(cashShare, 0)}</em>
                   </div>
+                  <div className="mix-legend-item">
+                    <span className="legend-dot legend-dot-real-estate" />
+                    <div><strong>房產</strong><span>{formatTwd(summary.realEstateValueTwd, displayMode)}</span></div>
+                    <em>{formatPercent(realEstateShare, 0)}</em>
+                  </div>
                 </div>
               </div>
               <div className="mix-bar" aria-label="股票與現金配置比例">
                 <span className="mix-bar-stock" style={{ width: `${Math.min(100, stockShare)}%` }} />
                 <span className="mix-bar-cash" style={{ width: `${Math.min(100, cashShare)}%` }} />
+                <span className="mix-bar-real-estate" style={{ width: `${Math.min(100, realEstateShare)}%` }} />
               </div>
-              <p className="card-footnote">{hasLoans ? `擔保品市值 ${formatTwd(summary.collateralValueTwd, displayMode)}；維持率會隨你輸入的現價更新。` : '目前尚未建立質押借款，負債為 NT$0。前往質押模擬建立第一筆借款。'}</p>
+              <p className="card-footnote">{hasLoans ? `擔保品市值 ${formatTwd(summary.collateralValueTwd, displayMode)}；維持率會隨你輸入的現價更新。` : state.liabilities.length > 0 ? `一般負債 ${formatTwd(summary.totalLiabilitiesTwd, displayMode)}；房貸與固定付款會計入月現金流。` : '目前尚未建立借款或一般負債；可到質押模擬管理房貸與其他固定還款。'}</p>
             </article>
 
             <article className="card health-card">
@@ -213,7 +222,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.1.1 完成項目</div>
+              <div className="section-kicker">V1.2.0 完成項目</div>
               <h2>把本機資料帶得走，換裝置也不怕。</h2>
               <p>完整保留投資資產、借款、現金流與模擬方案，備份檔只在你的裝置之間流動。</p>
               <div className="next-step-list">

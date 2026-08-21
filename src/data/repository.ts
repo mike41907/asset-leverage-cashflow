@@ -15,7 +15,9 @@ import {
   type Collateral,
   type CashFlowItem,
   type DividendTarget,
+  type Liability,
   type Loan,
+  type RealEstateAsset,
   type Simulation,
   type StockAsset,
 } from '../domain/models'
@@ -35,7 +37,9 @@ export async function saveAppState(state: AppState): Promise<void> {
   await Promise.all([
     ...state.stocks.map((item) => putInStore(STORE_NAMES.stocks, item)),
     ...state.cash.map((item) => putInStore(STORE_NAMES.cash, item)),
+    ...state.realEstate.map((item) => putInStore(STORE_NAMES.realEstate, item)),
     ...state.loans.map((item) => putInStore(STORE_NAMES.loans, item)),
+    ...state.liabilities.map((item) => putInStore(STORE_NAMES.liabilities, item)),
     ...state.collaterals.map((item) => putInStore(STORE_NAMES.collaterals, item)),
     ...state.cashFlowItems.map((item) => putInStore(STORE_NAMES.cashFlowItems, item)),
     ...state.simulations.map((item) => putInStore(STORE_NAMES.simulations, item)),
@@ -48,7 +52,9 @@ export async function replaceAppState(state: AppState): Promise<void> {
   await replaceStores({
     [STORE_NAMES.stocks]: state.stocks,
     [STORE_NAMES.cash]: state.cash,
+    [STORE_NAMES.realEstate]: state.realEstate,
     [STORE_NAMES.loans]: state.loans,
+    [STORE_NAMES.liabilities]: state.liabilities,
     [STORE_NAMES.collaterals]: state.collaterals,
     [STORE_NAMES.cashFlowItems]: state.cashFlowItems,
     [STORE_NAMES.simulations]: state.simulations,
@@ -59,10 +65,12 @@ export async function replaceAppState(state: AppState): Promise<void> {
 }
 
 async function readState(): Promise<AppState> {
-  const [stocks, cash, loans, collaterals, cashFlowItems, simulations, dividendTargets, settings] = await Promise.all([
+  const [stocks, cash, realEstate, loans, liabilities, collaterals, cashFlowItems, simulations, dividendTargets, settings] = await Promise.all([
     getAllFromStore<StockAsset>(STORE_NAMES.stocks),
     getAllFromStore<CashAsset>(STORE_NAMES.cash),
+    getAllFromStore<RealEstateAsset>(STORE_NAMES.realEstate),
     getAllFromStore<Loan>(STORE_NAMES.loans),
+    getAllFromStore<Liability>(STORE_NAMES.liabilities),
     getAllFromStore<Collateral>(STORE_NAMES.collaterals),
     getAllFromStore<CashFlowItem>(STORE_NAMES.cashFlowItems),
     getAllFromStore<Simulation>(STORE_NAMES.simulations),
@@ -73,7 +81,9 @@ async function readState(): Promise<AppState> {
   return {
     stocks,
     cash,
+    realEstate,
     loans,
+    liabilities,
     collaterals,
     cashFlowItems,
     simulations,
@@ -108,6 +118,22 @@ export async function saveCash(cash: CashAsset): Promise<void> {
 
 export async function deleteCash(id: string): Promise<void> {
   await deleteFromStore(STORE_NAMES.cash, id)
+}
+
+export async function saveRealEstate(asset: RealEstateAsset): Promise<void> {
+  await putInStore(STORE_NAMES.realEstate, asset)
+}
+
+export async function deleteRealEstate(id: string): Promise<void> {
+  await deleteFromStore(STORE_NAMES.realEstate, id)
+}
+
+export async function saveLiability(liability: Liability): Promise<void> {
+  await putInStore(STORE_NAMES.liabilities, liability)
+}
+
+export async function deleteLiability(id: string): Promise<void> {
+  await deleteFromStore(STORE_NAMES.liabilities, id)
 }
 
 export async function saveCashFlowItem(item: CashFlowItem): Promise<void> {
@@ -160,15 +186,18 @@ export async function deleteLoanBundle(loan: Loan): Promise<void> {
 export async function clearDemoData(state: AppState): Promise<AppState> {
   const demoStocks = state.stocks.filter((item) => item.isDemo)
   const demoCash = state.cash.filter((item) => item.isDemo)
+  const demoRealEstate = state.realEstate.filter((item) => item.isDemo)
   await Promise.all([
     ...demoStocks.map((item) => deleteStock(item.id)),
     ...demoCash.map((item) => deleteCash(item.id)),
+    ...demoRealEstate.map((item) => deleteRealEstate(item.id)),
   ])
 
   return {
     ...state,
     stocks: state.stocks.filter((item) => !item.isDemo),
     cash: state.cash.filter((item) => !item.isDemo),
+    realEstate: state.realEstate.filter((item) => !item.isDemo),
     settings: { ...state.settings, hasSeenDemoNotice: true, updatedAt: now() },
   }
 }

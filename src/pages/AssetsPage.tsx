@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   Edit3,
+  House,
   Info,
   Plus,
   RefreshCw,
@@ -12,8 +13,8 @@ import {
   WalletCards,
   X,
 } from 'lucide-react'
-import type { CashAsset, Currency, Market, StockAsset } from '../domain/models'
-import { calculateCashValue, calculateStockMarketValue, calculateStockUnrealizedGain, calculateStockUnrealizedGainPercent } from '../domain/calculations'
+import type { CashAsset, Currency, Market, RealEstateAsset, RealEstateType, StockAsset } from '../domain/models'
+import { calculateCashValue, calculateRealEstateValueTwd, calculateStockMarketValue, calculateStockUnrealizedGain, calculateStockUnrealizedGainPercent } from '../domain/calculations'
 import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
 import { EmptyState } from '../components/EmptyState'
@@ -22,17 +23,21 @@ import { fetchStockQuote, PUBLIC_QUOTE_PROVIDER_LABEL, type StockQuote } from '.
 interface AssetsPageProps {
   stocks: StockAsset[]
   cash: CashAsset[]
+  realEstate: RealEstateAsset[]
   displayMode: 'exact' | 'compact'
   onSaveStock: (stock: StockAsset) => Promise<void>
   onSaveStocks: (stocks: StockAsset[]) => Promise<void>
   onDeleteStock: (id: string) => Promise<void>
   onSaveCash: (cash: CashAsset) => Promise<void>
   onDeleteCash: (id: string) => Promise<void>
+  onSaveRealEstate: (asset: RealEstateAsset) => Promise<void>
+  onDeleteRealEstate: (id: string) => Promise<void>
 }
 
-type AssetTab = 'stocks' | 'cash'
+type AssetTab = 'stocks' | 'cash' | 'realEstate'
 type StockDraft = Omit<StockAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
 type CashDraft = Omit<CashAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
+type RealEstateDraft = Omit<RealEstateAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
 
 const defaultStockDraft: StockDraft = {
   symbol: '',
@@ -72,6 +77,15 @@ const defaultCashDraft: CashDraft = {
   notes: '',
 }
 
+const defaultRealEstateDraft: RealEstateDraft = {
+  name: '',
+  propertyType: 'residential',
+  currentValueTwd: 0,
+  purchasePriceTwd: 0,
+  monthlyRentalIncomeTwd: 0,
+  notes: '',
+}
+
 function stockDraftFrom(stock: StockAsset): StockDraft {
   const { id: _id, kind: _kind, createdAt: _createdAt, updatedAt: _updatedAt, isDemo: _isDemo, ...draft } = stock
   return draft
@@ -80,6 +94,15 @@ function stockDraftFrom(stock: StockAsset): StockDraft {
 function cashDraftFrom(cash: CashAsset): CashDraft {
   const { id: _id, kind: _kind, createdAt: _createdAt, updatedAt: _updatedAt, isDemo: _isDemo, ...draft } = cash
   return draft
+}
+
+function realEstateDraftFrom(asset: RealEstateAsset): RealEstateDraft {
+  const { id: _id, kind: _kind, createdAt: _createdAt, updatedAt: _updatedAt, isDemo: _isDemo, ...draft } = asset
+  return draft
+}
+
+function realEstateTypeLabel(type: RealEstateType): string {
+  return type === 'residential' ? '住宅' : type === 'commercial' ? '商用不動產' : type === 'land' ? '土地' : '其他房產'
 }
 
 function getQuoteErrorMessage(error: unknown): string {
@@ -125,15 +148,18 @@ function SelectChevron() {
   return <ChevronDown className="select-chevron" size={16} aria-hidden="true" />
 }
 
-export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStocks, onDeleteStock, onSaveCash, onDeleteCash }: AssetsPageProps) {
+export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock, onSaveStocks, onDeleteStock, onSaveCash, onDeleteCash, onSaveRealEstate, onDeleteRealEstate }: AssetsPageProps) {
   const [activeTab, setActiveTab] = useState<AssetTab>('stocks')
   const [search, setSearch] = useState('')
   const [stockModalOpen, setStockModalOpen] = useState(false)
   const [cashModalOpen, setCashModalOpen] = useState(false)
+  const [realEstateModalOpen, setRealEstateModalOpen] = useState(false)
   const [editingStock, setEditingStock] = useState<StockAsset | null>(null)
   const [editingCash, setEditingCash] = useState<CashAsset | null>(null)
+  const [editingRealEstate, setEditingRealEstate] = useState<RealEstateAsset | null>(null)
   const [stockDraft, setStockDraft] = useState<StockDraft>(defaultStockDraft)
   const [cashDraft, setCashDraft] = useState<CashDraft>(defaultCashDraft)
+  const [realEstateDraft, setRealEstateDraft] = useState<RealEstateDraft>(defaultRealEstateDraft)
   const [quoteState, setQuoteState] = useState<QuoteState>(initialQuoteState)
   const [isRefreshingAll, setIsRefreshingAll] = useState(false)
   const [quoteListNotice, setQuoteListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
@@ -141,6 +167,7 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
 
   const filteredStocks = stocks.filter((stock) => `${stock.symbol} ${stock.name}`.toLowerCase().includes(search.toLowerCase()))
   const filteredCash = cash.filter((item) => `${item.label} ${item.currency}`.toLowerCase().includes(search.toLowerCase()))
+  const filteredRealEstate = realEstate.filter((item) => `${item.name} ${realEstateTypeLabel(item.propertyType)}`.toLowerCase().includes(search.toLowerCase()))
 
   const openNewStock = () => {
     setEditingStock(null)
@@ -170,6 +197,18 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
     setEditingCash(item)
     setCashDraft(cashDraftFrom(item))
     setCashModalOpen(true)
+  }
+
+  const openNewRealEstate = () => {
+    setEditingRealEstate(null)
+    setRealEstateDraft({ ...defaultRealEstateDraft })
+    setRealEstateModalOpen(true)
+  }
+
+  const openEditRealEstate = (asset: RealEstateAsset) => {
+    setEditingRealEstate(asset)
+    setRealEstateDraft(realEstateDraftFrom(asset))
+    setRealEstateModalOpen(true)
   }
 
   const refreshStockQuote = async (): Promise<StockQuote | null> => {
@@ -258,6 +297,25 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
     setCashModalOpen(false)
   }
 
+  const handleRealEstateSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const time = new Date().toISOString()
+    await onSaveRealEstate({
+      ...realEstateDraft,
+      id: editingRealEstate?.id ?? createId('real-estate'),
+      kind: 'real-estate',
+      currentValueTwd: Math.max(0, realEstateDraft.currentValueTwd),
+      purchasePriceTwd: Math.max(0, realEstateDraft.purchasePriceTwd),
+      monthlyRentalIncomeTwd: Math.max(0, realEstateDraft.monthlyRentalIncomeTwd),
+      name: realEstateDraft.name.trim(),
+      notes: realEstateDraft.notes.trim(),
+      createdAt: editingRealEstate?.createdAt ?? time,
+      updatedAt: time,
+      isDemo: false,
+    })
+    setRealEstateModalOpen(false)
+  }
+
   const handleRefreshAllStocks = async () => {
     const refreshableStocks = stocks.filter((stock) => stock.market !== 'OTHER')
     if (refreshableStocks.length === 0) {
@@ -305,6 +363,10 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
     if (window.confirm(`確定要刪除「${item.label}」嗎？`)) await onDeleteCash(item.id)
   }
 
+  const handleDeleteRealEstate = async (asset: RealEstateAsset) => {
+    if (window.confirm(`確定要刪除「${asset.name}」嗎？`)) await onDeleteRealEstate(asset.id)
+  }
+
   return (
     <div className="page-container">
       <section className="page-heading">
@@ -315,7 +377,7 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
         </div>
         <div className="heading-actions">
           {activeTab === 'stocks' && <button type="button" className="button button-secondary" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新所有行情'}</button>}
-          <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : openNewCash}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : '現金'}</button>
+          <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : activeTab === 'cash' ? openNewCash : openNewRealEstate}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : activeTab === 'cash' ? '現金' : '房產'}</button>
         </div>
       </section>
 
@@ -323,8 +385,9 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
         <div className="segmented-control" role="tablist" aria-label="資產類型">
           <button type="button" role="tab" aria-selected={activeTab === 'stocks'} className={activeTab === 'stocks' ? 'is-active' : ''} onClick={() => { setActiveTab('stocks'); setSearch('') }}><BarChartGlyph />股票 <span>{stocks.length}</span></button>
           <button type="button" role="tab" aria-selected={activeTab === 'cash'} className={activeTab === 'cash' ? 'is-active' : ''} onClick={() => { setActiveTab('cash'); setSearch('') }}><Banknote size={16} />現金 <span>{cash.length}</span></button>
+          <button type="button" role="tab" aria-selected={activeTab === 'realEstate'} className={activeTab === 'realEstate' ? 'is-active' : ''} onClick={() => { setActiveTab('realEstate'); setSearch('') }}><House size={16} />房產 <span>{realEstate.length}</span></button>
         </div>
-        <label className="search-field"><Search size={17} /><span className="sr-only">搜尋資產</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={activeTab === 'stocks' ? '搜尋代號或名稱' : '搜尋現金帳戶'} /></label>
+        <label className="search-field"><Search size={17} /><span className="sr-only">搜尋資產</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={activeTab === 'stocks' ? '搜尋代號或名稱' : activeTab === 'cash' ? '搜尋現金帳戶' : '搜尋房產名稱'} /></label>
       </section>
 
       {activeTab === 'stocks' ? (
@@ -360,7 +423,7 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
           )}
           <div className="table-note"><Info size={15} /> 市值 = 持有股數 × 現價 × 匯率；自動價格來自第三方公開行情，可能延遲或暫時無法使用。</div>
         </section>
-      ) : (
+      ) : activeTab === 'cash' ? (
         <section className="card asset-table-card">
           <div className="section-heading-row asset-section-heading">
             <div><div className="section-kicker">現金 / 存款</div><h2>現金清單</h2></div>
@@ -380,6 +443,28 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
               <button type="button" className="add-asset-dashed" onClick={openNewCash}><Plus size={20} /><span>新增一筆現金</span></button>
             </div>
           )}
+        </section>
+      ) : (
+        <section className="card asset-table-card">
+          <div className="section-heading-row asset-section-heading">
+            <div><div className="section-kicker">房產 / 不動產</div><h2>房產清單</h2></div>
+            <span className="section-caption">目前估值計入總資產</span>
+          </div>
+          {filteredRealEstate.length === 0 ? (
+            <EmptyState icon={House} title={search ? '找不到符合的房產' : '還沒有房產資產'} description={search ? '換一個名稱或類型試試。' : '加入自住房、出租房或土地，淨資產會同步計算。'} actionLabel={search ? undefined : '新增房產'} onAction={search ? undefined : openNewRealEstate} />
+          ) : (
+            <div className="cash-grid">
+              {filteredRealEstate.map((asset) => <article className="cash-asset-card real-estate-card" key={asset.id}>
+                <div className="cash-card-top"><span className="cash-avatar real-estate-avatar"><House size={18} /></span><div><strong>{asset.name}</strong><small>{realEstateTypeLabel(asset.propertyType)}</small></div>{asset.isDemo && <span className="demo-badge">Demo</span>}</div>
+                <div className="cash-card-amount">{formatTwd(calculateRealEstateValueTwd(asset), displayMode)}</div>
+                <div className="cash-card-meta"><span>購入價格</span><strong>{formatTwd(asset.purchasePriceTwd, displayMode)}</strong></div>
+                <div className="cash-card-meta"><span>每月租金收入</span><strong className={asset.monthlyRentalIncomeTwd > 0 ? 'positive-text' : ''}>{formatTwd(asset.monthlyRentalIncomeTwd, displayMode)}</strong></div>
+                <div className="cash-card-actions"><button type="button" className="button button-ghost" onClick={() => openEditRealEstate(asset)}><Edit3 size={15} />編輯</button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${asset.name}`} onClick={() => void handleDeleteRealEstate(asset)}><Trash2 size={15} /></button></div>
+              </article>)}
+              <button type="button" className="add-asset-dashed" onClick={openNewRealEstate}><Plus size={20} /><span>新增一筆房產</span></button>
+            </div>
+          )}
+          <div className="table-note"><Info size={15} /> 房產以你輸入的目前估值計入總資產；房貸餘額請到「一般負債／房貸」管理。</div>
         </section>
       )}
 
@@ -414,6 +499,20 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStock
           </div>
           <FormField label="備註" wide><textarea value={cashDraft.notes} onChange={(event) => setCashDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：銀行或帳戶用途" rows={3} /></FormField>
           <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setCashModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存現金</button></div>
+        </form>
+      </Modal>}
+
+      {realEstateModalOpen && <Modal title={editingRealEstate ? '編輯房產資產' : '新增房產資產'} description="房產目前估值會計入總資產；房貸請另外建立一般負債。" onClose={() => setRealEstateModalOpen(false)}>
+        <form className="asset-form" onSubmit={(event) => void handleRealEstateSubmit(event)}>
+          <div className="form-grid form-grid-two">
+            <FormField label="房產名稱" wide><input required value={realEstateDraft.name} onChange={(event) => setRealEstateDraft((current) => ({ ...current, name: event.target.value }))} placeholder="例如 自住房／台北房產" /></FormField>
+            <FormField label="房產類型"><div className="select-wrap"><select value={realEstateDraft.propertyType} onChange={(event) => setRealEstateDraft((current) => ({ ...current, propertyType: event.target.value as RealEstateType }))}><option value="residential">住宅</option><option value="commercial">商用不動產</option><option value="land">土地</option><option value="other">其他房產</option></select><SelectChevron /></div></FormField>
+            <FormField label="目前估值" hint="TWD"><input required min="0" step="any" type="number" value={realEstateDraft.currentValueTwd || ''} onChange={(event) => setRealEstateDraft((current) => ({ ...current, currentValueTwd: Number(event.target.value) }))} placeholder="例如 12,000,000" /></FormField>
+            <FormField label="購入價格" hint="TWD"><input min="0" step="any" type="number" value={realEstateDraft.purchasePriceTwd || ''} onChange={(event) => setRealEstateDraft((current) => ({ ...current, purchasePriceTwd: Number(event.target.value) }))} placeholder="可留空" /></FormField>
+            <FormField label="每月租金收入" hint="TWD／沒有請填 0" wide><input min="0" step="any" type="number" value={realEstateDraft.monthlyRentalIncomeTwd || ''} onChange={(event) => setRealEstateDraft((current) => ({ ...current, monthlyRentalIncomeTwd: Number(event.target.value) }))} placeholder="0" /></FormField>
+          </div>
+          <FormField label="備註" wide><textarea value={realEstateDraft.notes} onChange={(event) => setRealEstateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如 地址區域、估值日期或產權備註" rows={3} /></FormField>
+          <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setRealEstateModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存房產</button></div>
         </form>
       </Modal>}
     </div>

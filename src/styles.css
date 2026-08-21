@@ -235,3 +235,9 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
 @media (max-width: 470px) {
   .quote-control { grid-template-columns: 1fr; }.quote-refresh-button { width: 100%; }.quote-status { align-items: flex-start; flex-wrap: wrap; }.quote-status small { width: 100%; margin-left: 21px; }.data-table td[data-label='現價'] { min-width: 0; }
 }
+
+.donut-chart { --cash-share: 20%; background: conic-gradient(var(--teal) 0 var(--stock-share), var(--violet) var(--stock-share) calc(var(--stock-share) + var(--cash-share)), #c9d7da calc(var(--stock-share) + var(--cash-share)) 100%); }
+.legend-dot-real-estate, .mix-bar-real-estate { background: var(--violet); }
+.cashflow-system-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .cashflow-system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 470px) { .cashflow-system-grid { grid-template-columns: 1fr; } }

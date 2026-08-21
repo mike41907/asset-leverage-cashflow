@@ -7,7 +7,9 @@ import {
   type CashFlowItem,
   type Collateral,
   type DividendTarget,
+  type Liability,
   type Loan,
+  type RealEstateAsset,
   type Simulation,
   type StockAsset,
 } from '../domain/models'
@@ -35,6 +37,10 @@ function requireRecordArray(value: unknown, label: string): UnknownRecord[] {
     }
     return record
   })
+}
+
+function optionalRecordArray(value: unknown, label: string): UnknownRecord[] {
+  return value === undefined ? [] : requireRecordArray(value, label)
 }
 
 function requireFiniteNumber(value: unknown, label: string): number {
@@ -78,7 +84,9 @@ export function createBackupData(state: AppState, exportedAt = new Date().toISOS
     exportedAt,
     stocks: cloneRecords(state.stocks),
     cash: cloneRecords(state.cash),
+    realEstate: cloneRecords(state.realEstate),
     loans: cloneRecords(state.loans),
+    liabilities: cloneRecords(state.liabilities),
     collaterals: cloneRecords(state.collaterals),
     cashFlowItems: cloneRecords(state.cashFlowItems),
     simulations: cloneRecords(state.simulations),
@@ -111,7 +119,9 @@ export function parseBackupData(serialized: string): BackupData {
     exportedAt: backup.exportedAt,
     stocks: requireRecordArray(backup.stocks, 'stocks') as unknown as StockAsset[],
     cash: requireRecordArray(backup.cash, 'cash') as unknown as CashAsset[],
+    realEstate: optionalRecordArray(backup.realEstate, 'realEstate') as unknown as RealEstateAsset[],
     loans: requireRecordArray(backup.loans, 'loans') as unknown as Loan[],
+    liabilities: optionalRecordArray(backup.liabilities, 'liabilities') as unknown as Liability[],
     collaterals: requireRecordArray(backup.collaterals, 'collaterals') as unknown as Collateral[],
     cashFlowItems: requireRecordArray(backup.cashFlowItems, 'cashFlowItems') as unknown as CashFlowItem[],
     simulations: requireRecordArray(backup.simulations, 'simulations') as unknown as Simulation[],
@@ -124,7 +134,9 @@ export function backupToAppState(backup: BackupData): AppState {
   return {
     stocks: cloneRecords(backup.stocks),
     cash: cloneRecords(backup.cash),
+    realEstate: cloneRecords(backup.realEstate),
     loans: cloneRecords(backup.loans),
+    liabilities: cloneRecords(backup.liabilities),
     collaterals: cloneRecords(backup.collaterals),
     cashFlowItems: cloneRecords(backup.cashFlowItems),
     simulations: cloneRecords(backup.simulations),
@@ -143,7 +155,9 @@ export function mergeBackupIntoAppState(current: AppState, backup: BackupData): 
   return {
     stocks: mergeRecords(current.stocks, backup.stocks),
     cash: mergeRecords(current.cash, backup.cash),
+    realEstate: mergeRecords(current.realEstate, backup.realEstate),
     loans: mergeRecords(current.loans, backup.loans),
+    liabilities: mergeRecords(current.liabilities, backup.liabilities),
     collaterals: mergeRecords(current.collaterals, backup.collaterals),
     cashFlowItems: mergeRecords(current.cashFlowItems, backup.cashFlowItems),
     simulations: mergeRecords(current.simulations, backup.simulations),

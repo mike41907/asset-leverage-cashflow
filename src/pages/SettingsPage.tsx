@@ -72,7 +72,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />系統設定</div>
           <h1>讓工具，<span>跟你的習慣一起工作。</span></h1>
-          <p>V1.1 已加入股票公開行情查詢；這裡集中管理顯示、風控與資料搬移。</p>
+          <p>V1.2 已加入房產、一般負債與家庭固定支出；這裡集中管理顯示、風控與資料搬移。</p>
         </div>
       </section>
 
@@ -110,7 +110,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         </div>
       </section>
 
-       <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V1.1.1</span></footer>
+       <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V1.2.0</span></footer>
     </div>
   )
 }

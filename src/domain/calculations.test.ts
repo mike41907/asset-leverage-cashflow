@@ -15,7 +15,7 @@ import {
   calculateStressTest,
   calculateTotalAssets,
 } from './calculations'
-import type { CashAsset, CashFlowItem, Loan, StockAsset } from './models'
+import type { CashAsset, CashFlowItem, Liability, Loan, RealEstateAsset, StockAsset } from './models'
 
 const stock = (overrides: Partial<StockAsset> = {}): StockAsset => ({
   id: 'stock-1',
@@ -49,11 +49,56 @@ const cash: CashAsset = {
   updatedAt: '',
 }
 
+const house: RealEstateAsset = {
+  id: 'house-1',
+  kind: 'real-estate',
+  name: '自住房',
+  propertyType: 'residential',
+  currentValueTwd: 12_000_000,
+  purchasePriceTwd: 10_000_000,
+  monthlyRentalIncomeTwd: 0,
+  notes: '',
+  createdAt: '',
+  updatedAt: '',
+}
+
 describe('portfolio calculations', () => {
   it('keeps borrowed money out of net worth while reflecting reinvested assets', () => {
     const totalAssets = calculateTotalAssets([stock({ shares: 1000, currentPrice: 5000 })], [cash], 2_000_000)
     expect(totalAssets).toBe(8_000_000)
     expect(calculateNetWorth(totalAssets, 2_000_000)).toBe(6_000_000)
+  })
+
+  it('includes real estate in assets and general liabilities in net worth and monthly cash flow', () => {
+    const mortgage: Liability = {
+      id: 'mortgage-1',
+      type: 'mortgage',
+      name: '自住房房貸',
+      institution: '測試銀行',
+      linkedAssetId: house.id,
+      principal: 8_000_000,
+      outstandingBalance: 7_500_000,
+      annualInterestRatePercent: 2.2,
+      monthlyPayment: 35_000,
+      borrowedAt: '2026-01-01',
+      maturityDate: null,
+      isActive: true,
+      notes: '',
+      createdAt: '',
+      updatedAt: '',
+    }
+    const summary = calculatePortfolioSummary([], [], [], [], [], 160, 120, [house], [mortgage])
+
+    expect(summary.realEstateValueTwd).toBe(12_000_000)
+    expect(summary.totalAssetsTwd).toBe(12_000_000)
+    expect(summary.totalLiabilitiesTwd).toBe(7_500_000)
+    expect(summary.monthlyLiabilityPaymentTwd).toBe(35_000)
+    expect(summary.monthlyDebtServiceTwd).toBe(35_000)
+    expect(summary.monthlyCashFlowTwd).toBe(-35_000)
+
+    const rentalSummary = calculatePortfolioSummary([], [], [], [], [], 160, 120, [{ ...house, monthlyRentalIncomeTwd: 20_000 }], [mortgage])
+    expect(rentalSummary.monthlyRentalIncomeTwd).toBe(20_000)
+    expect(rentalSummary.monthlyCashFlowTwd).toBe(-15_000)
   })
 
   it('calculates a 200% maintenance ratio', () => {

@@ -8,10 +8,23 @@ describe('backup data', () => {
     const backup = createBackupData(state, '2026-08-21T00:00:00.000Z')
     const parsed = parseBackupData(serializeBackupData(backup))
 
-    expect(parsed.backupVersion).toBe(1)
+    expect(parsed.backupVersion).toBe(2)
     expect(parsed.exportedAt).toBe('2026-08-21T00:00:00.000Z')
     expect(parsed.stocks.map((stock) => stock.symbol)).toEqual(['0050', '00878'])
+    expect(parsed.realEstate).toEqual([])
+    expect(parsed.liabilities).toEqual([])
     expect(parsed.settings.themeMode).toBe('system')
+  })
+
+  it('imports V1 backups without the new household records', () => {
+    const state = createDemoState()
+    const backup = createBackupData(state)
+    const legacyBackup = { ...backup, backupVersion: 1, realEstate: undefined, liabilities: undefined }
+    const parsed = parseBackupData(JSON.stringify(legacyBackup))
+
+    expect(parsed.realEstate).toEqual([])
+    expect(parsed.liabilities).toEqual([])
+    expect(parsed.settings.schemaVersion).toBe(2)
   })
 
   it('rejects malformed and future-version backups', () => {

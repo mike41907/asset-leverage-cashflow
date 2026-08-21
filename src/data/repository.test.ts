@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { deleteDatabase } from './database'
-import type { CashFlowItem, Collateral, DividendTarget, Loan, Simulation } from '../domain/models'
-import { clearDemoData, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteSimulation, loadAppState, replaceAppState, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSimulation, saveStock } from './repository'
+import type { CashFlowItem, Collateral, DividendTarget, Liability, Loan, RealEstateAsset, Simulation } from '../domain/models'
+import { clearDemoData, deleteCashFlowItem, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, loadAppState, replaceAppState, saveCashFlowItem, saveDividendTarget, saveLiability, saveLoanBundle, saveRealEstate, saveSimulation, saveStock } from './repository'
 
 describe('local repository', () => {
   beforeEach(async () => {
@@ -98,6 +98,53 @@ describe('local repository', () => {
     await deleteCashFlowItem(item.id)
     const deleted = await loadAppState()
     expect(deleted.cashFlowItems.some((existing) => existing.id === item.id)).toBe(false)
+  })
+
+  it('persists and deletes real estate and general liability records locally', async () => {
+    const first = await loadAppState()
+    const time = new Date().toISOString()
+    const asset: RealEstateAsset = {
+      id: 'real-estate-test',
+      kind: 'real-estate',
+      name: '測試自住房',
+      propertyType: 'residential',
+      currentValueTwd: 12_000_000,
+      purchasePriceTwd: 10_000_000,
+      monthlyRentalIncomeTwd: 0,
+      notes: '',
+      createdAt: time,
+      updatedAt: time,
+    }
+    const liability: Liability = {
+      id: 'liability-test',
+      type: 'mortgage',
+      name: '測試房貸',
+      institution: '測試銀行',
+      linkedAssetId: asset.id,
+      principal: 8_000_000,
+      outstandingBalance: 7_500_000,
+      annualInterestRatePercent: 2.2,
+      monthlyPayment: 35_000,
+      borrowedAt: '2026-01-01',
+      maturityDate: null,
+      isActive: true,
+      notes: '',
+      createdAt: time,
+      updatedAt: time,
+    }
+
+    await saveRealEstate(asset)
+    await saveLiability(liability)
+    const saved = await loadAppState()
+    expect(saved.realEstate).toContainEqual(asset)
+    expect(saved.liabilities).toContainEqual(liability)
+
+    await deleteRealEstate(asset.id)
+    await deleteLiability(liability.id)
+    const deleted = await loadAppState()
+    expect(deleted.realEstate.some((item) => item.id === asset.id)).toBe(false)
+    expect(deleted.liabilities.some((item) => item.id === liability.id)).toBe(false)
+    expect(first.realEstate).toEqual([])
   })
 
   it('persists and deletes a passive income target locally', async () => {
