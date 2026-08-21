@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchStockQuote, hasChineseName, normalizeYahooSymbol, parseTaiwanStockNameText, parseYahooChartPayload, parseYahooChartText } from './quoteService'
+import { fetchStockQuote, fetchUsdTwdExchangeRate, hasChineseName, normalizeYahooSymbol, parseTaiwanStockNameText, parseYahooChartPayload, parseYahooChartText } from './quoteService'
 
 const chartPayload = {
   chart: {
@@ -27,6 +27,21 @@ const usChartPayload = {
         regularMarketTime: 1_756_000_000,
       },
       indicators: { quote: [{ close: [209.8, 210.25] }] },
+    }],
+  },
+}
+
+const fxChartPayload = {
+  chart: {
+    result: [{
+      meta: {
+        symbol: 'TWD=X',
+        longName: 'USD/TWD',
+        currency: 'TWD',
+        regularMarketPrice: 32.45,
+        regularMarketTime: 1_756_000_000,
+      },
+      indicators: { quote: [{ close: [32.4, 32.45] }] },
     }],
   },
 }
@@ -180,6 +195,19 @@ describe('quote service', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('range=2y')
     expect(fetchMock.mock.calls[0][0]).toContain('events=div%2Csplits')
     expect(quote.price).toBe(1_234.5)
+  })
+
+  it('fetches the USD/TWD rate from the TWD=X currency pair', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify(fxChartPayload),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const exchangeRate = await fetchUsdTwdExchangeRate()
+
+    expect(exchangeRate).toMatchObject({ pair: 'USD/TWD', rate: 32.45, source: 'yahoo-public' })
+    expect(fetchMock.mock.calls[0][0]).toContain('/TWD=X?')
   })
 
   it('converts US share-class symbols before requesting the public reader endpoint', async () => {

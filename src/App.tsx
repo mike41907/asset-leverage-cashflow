@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AppShell } from './components/AppShell'
 import { calculatePortfolioSummary } from './domain/calculations'
 import type { AppState, AppSettings, BackupData, CashAsset, CashFlowItem, Collateral, DividendTarget, Liability, Loan, PageKey, RealEstateAsset, Simulation, StockAsset } from './domain/models'
@@ -9,6 +9,7 @@ import { AssetsPage } from './pages/AssetsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { LoanManagementPage } from './pages/LoanManagementPage'
 import { CashFlowPage } from './pages/CashFlowPage'
+import { fetchUsdTwdExchangeRate } from './services/quoteService'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '本機資料操作失敗，請重新整理後再試。'
@@ -33,10 +34,37 @@ export default function App() {
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const exchangeRateSyncKeyRef = useRef('')
 
   useEffect(() => {
     void loadAppState().then(setState).catch((loadError: unknown) => setError(getErrorMessage(loadError)))
   }, [])
+
+  useEffect(() => {
+    if (!state) return
+    const stocksNeedingExchangeRate = state.stocks.filter((stock) => stock.market === 'US' && (!Number.isFinite(stock.exchangeRateToTwd) || stock.exchangeRateToTwd <= 1))
+    if (stocksNeedingExchangeRate.length === 0) return
+    const syncKey = stocksNeedingExchangeRate.map((stock) => `${stock.id}:${stock.updatedAt}`).join('|')
+    if (exchangeRateSyncKeyRef.current === syncKey) return
+    let cancelled = false
+
+    void fetchUsdTwdExchangeRate().then(async (exchangeRate) => {
+      if (cancelled) return
+      exchangeRateSyncKeyRef.current = syncKey
+      const updatedAt = new Date().toISOString()
+      const updatedStocks = stocksNeedingExchangeRate.map((stock) => ({ ...stock, exchangeRateToTwd: exchangeRate.rate, updatedAt }))
+      await Promise.all(updatedStocks.map((stock) => saveStock(stock)))
+      if (cancelled) return
+      const updatedById = new Map(updatedStocks.map((stock) => [stock.id, stock]))
+      setState((current) => current ? { ...current, stocks: current.stocks.map((stock) => updatedById.get(stock.id) ?? stock) } : current)
+    }).catch(() => {
+      // 若目前離線，保留本機資料；下次重新開啟或按下「更新所有行情」時再重試。
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [state])
 
   useEffect(() => {
     if (!state) return

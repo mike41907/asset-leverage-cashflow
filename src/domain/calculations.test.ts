@@ -12,6 +12,8 @@ import {
   calculateRequiredShares,
   calculateReinvestmentSimulation,
   calculateScenarioComparison,
+  calculateStockMarketValue,
+  calculateStockUnrealizedGain,
   calculateStressTest,
   calculateTotalAssets,
 } from './calculations'
@@ -63,6 +65,20 @@ const house: RealEstateAsset = {
 }
 
 describe('portfolio calculations', () => {
+  it('converts US stock market value and gain into TWD', () => {
+    const usStock = stock({
+      market: 'US',
+      currency: 'USD',
+      exchangeRateToTwd: 32.5,
+      shares: 10,
+      averageCost: 100,
+      currentPrice: 120,
+    })
+
+    expect(calculateStockMarketValue(usStock)).toBe(39_000)
+    expect(calculateStockUnrealizedGain(usStock)).toBe(6_500)
+  })
+
   it('keeps borrowed money out of net worth while reflecting reinvested assets', () => {
     const totalAssets = calculateTotalAssets([stock({ shares: 1000, currentPrice: 5000 })], [cash], 2_000_000)
     expect(totalAssets).toBe(8_000_000)

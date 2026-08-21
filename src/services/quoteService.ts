@@ -30,6 +30,14 @@ export interface StockQuote {
   dividend: StockDividendQuote | null
 }
 
+export interface UsdTwdExchangeRate {
+  pair: 'USD/TWD'
+  rate: number
+  marketAt: string | null
+  fetchedAt: string
+  source: 'yahoo-public'
+}
+
 interface YahooChartResult {
   meta?: Record<string, unknown>
   indicators?: {
@@ -267,11 +275,9 @@ async function fetchTaiwanStockName(yahooSymbol: string, requestedSymbol: string
   }
 }
 
-export async function fetchStockQuote(symbol: string, market: Market): Promise<StockQuote> {
-  const yahooSymbol = normalizeYahooSymbol(symbol, market)
+async function fetchYahooChartQuote(yahooSymbol: string, requestedSymbol: string, market: Market, fetchedAt: string): Promise<StockQuote> {
   const controller = new AbortController()
   const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  const fetchedAt = new Date().toISOString()
 
   try {
     const response = await fetch(createProxyUrl(yahooSymbol), {
@@ -279,7 +285,7 @@ export async function fetchStockQuote(symbol: string, market: Market): Promise<S
       signal: controller.signal,
     })
     if (!response.ok) throw new Error(`行情服務暫時無法使用（HTTP ${response.status}）。`)
-    const quote = parseYahooChartText(await response.text(), symbol, market, fetchedAt)
+    const quote = parseYahooChartText(await response.text(), requestedSymbol, market, fetchedAt)
     if (market === 'TW' && !hasChineseName(quote.name)) {
       const chineseName = await fetchTaiwanStockName(quote.yahooSymbol, quote.symbol)
       if (chineseName) quote.name = chineseName
@@ -292,4 +298,24 @@ export async function fetchStockQuote(symbol: string, market: Market): Promise<S
   } finally {
     globalThis.clearTimeout(timeout)
   }
+}
+
+export async function fetchUsdTwdExchangeRate(): Promise<UsdTwdExchangeRate> {
+  const fetchedAt = new Date().toISOString()
+  const quote = await fetchYahooChartQuote('TWD=X', 'USD/TWD', 'OTHER', fetchedAt)
+  if (quote.currency !== 'TWD' || !isFinitePositiveNumber(quote.price)) {
+    throw new Error('美元／台幣匯率回應格式不正確，請稍後再試。')
+  }
+  return {
+    pair: 'USD/TWD',
+    rate: quote.price,
+    marketAt: quote.marketAt,
+    fetchedAt: quote.fetchedAt,
+    source: 'yahoo-public',
+  }
+}
+
+export async function fetchStockQuote(symbol: string, market: Market): Promise<StockQuote> {
+  const yahooSymbol = normalizeYahooSymbol(symbol, market)
+  return fetchYahooChartQuote(yahooSymbol, symbol, market, new Date().toISOString())
 }

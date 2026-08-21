@@ -47,7 +47,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.4.0</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.5.0</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -222,14 +222,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.4.0 完成項目</div>
-              <h2>持倉截圖匯入，先辨識再確認。</h2>
-              <p>上傳券商台股或美股持倉截圖，APP 會在瀏覽器內辨識代號、股數、成本與價格，確認後一次加入持倉。</p>
+              <div className="section-kicker">V1.5.0 完成項目</div>
+              <h2>美股自動換算台幣，資產總額不再失真。</h2>
+              <p>美股會同步取得 USD/TWD 匯率，市值、未實現損益、配息與質押擔保品都會用台幣正確計算。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>支援台股代號與美股代號</div>
-                <div><span className="check-icon">✓</span>辨識股數、平均成本與目前價格</div>
-                <div><span className="check-icon">✓</span>顯示截圖損益並保留人工確認</div>
-                <div><span className="check-icon">✓</span>資料留在瀏覽器，不直接上傳持倉</div>
+                <div><span className="check-icon">✓</span>新增與編輯美股自動抓取匯率</div>
+                <div><span className="check-icon">✓</span>更新所有行情共用同一組 USD/TWD 匯率</div>
+                <div><span className="check-icon">✓</span>自動修復原本匯率為 1 的既有美股</div>
+                <div><span className="check-icon">✓</span>持倉卡片明確顯示換算匯率</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定
