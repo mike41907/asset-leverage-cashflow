@@ -234,7 +234,7 @@ export function PassiveIncomeTarget({ stocks, summary, targets, displayMode, onS
           </div>
 
           <div className="passive-target-actions"><button type="submit" className="button button-primary"><Check size={15} />{editingTarget ? '更新目標' : '保存目標'}</button>{editingTarget && <button type="button" className="button button-ghost" onClick={resetDraft}><Plus size={15} />新增另一個目標</button>}</div>
-          <div className="passive-target-note"><Info size={15} /><span>所有計算與目標只會保存於瀏覽器 IndexedDB；不連接行情 API，也不會把資料送到雲端。</span></div>
+          <div className="passive-target-note"><Info size={15} /><span>本頁試算仍使用你輸入的價格；計算與目標只保存於瀏覽器 IndexedDB，不會把持倉資料送到雲端。</span></div>
         </section>
 
         <section className="card passive-target-result-card">

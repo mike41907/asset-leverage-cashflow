@@ -8,6 +8,7 @@ export type AssetKind = 'stock' | 'cash' | 'other'
 export type CashFlowType = 'income' | 'expense'
 export type RepaymentMethod = 'interest-only' | 'equal-principal' | 'amortized'
 export type DividendIncomeMode = 'gross' | 'net'
+export type StockPriceSource = 'manual' | 'yahoo-public'
 
 export interface Asset {
   id: string
@@ -27,6 +28,10 @@ export interface StockAsset extends Asset {
   shares: number
   averageCost: number
   currentPrice: number
+  /** Price provenance is optional so V1.0 backups remain backward compatible. */
+  currentPriceSource?: StockPriceSource
+  currentPriceFetchedAt?: string
+  currentPriceMarketAt?: string
   estimatedAnnualDividendPerShare: number
   estimatedYieldPercent: number
   asCollateral: boolean
