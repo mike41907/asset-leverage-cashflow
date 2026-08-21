@@ -126,6 +126,26 @@ function priceSourceLabel(stock: StockAsset): string {
   return '手動價格'
 }
 
+function StockMobileCard({ stock, displayMode, onEdit, onDelete }: { stock: StockAsset; displayMode: 'exact' | 'compact'; onEdit: () => void; onDelete: () => void }) {
+  const gain = calculateStockUnrealizedGain(stock)
+  const gainPercent = calculateStockUnrealizedGainPercent(stock)
+  const isPositive = gain >= 0
+
+  return (
+    <article className="stock-mobile-card">
+      <div className="stock-mobile-card-header">
+        <div className="asset-cell"><span className="asset-avatar">{stock.symbol.slice(0, 2)}</span><div><strong>{stock.symbol}</strong><small>{stock.name}</small></div>{stock.isDemo && <span className="demo-badge">Demo</span>}</div>
+        <div className="stock-mobile-card-actions"><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={onEdit}><Edit3 size={17} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={onDelete}><Trash2 size={17} /></button></div>
+      </div>
+      <div className="stock-mobile-card-main">
+        <div className="stock-mobile-card-holding"><span>持有 {formatNumber(stock.shares)}</span><small>成本 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.averageCost, 2)}</small></div>
+        <div className="stock-mobile-card-value"><span>市值</span><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong><small>現價 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</small></div>
+      </div>
+      <div className="stock-mobile-card-footer"><span className={isPositive ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)} <small>{formatPercent(gainPercent)}</small></span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span><span className="stock-mobile-card-collateral">質押擔保 {stock.asCollateral ? '是' : '否'}</span></div>
+    </article>
+  )
+}
+
 function FormField({ label, hint, children, wide = false }: { label: string; hint?: string; children: React.ReactNode; wide?: boolean }) {
   return <label className={`form-field ${wide ? 'form-field-wide' : ''}`}><span>{label}{hint && <small>{hint}</small>}</span>{children}</label>
 }
@@ -394,13 +414,13 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
         <section className="card asset-table-card">
           <div className="section-heading-row asset-section-heading">
             <div><div className="section-kicker">股票 / ETF</div><h2>持倉清單</h2></div>
-            <span className="section-caption">公開行情＋手動備援</span>
+            <div className="asset-section-summary"><span>持倉市值</span><strong>{formatTwd(stocks.reduce((total, stock) => total + calculateStockMarketValue(stock), 0), displayMode)}</strong><small>公開行情＋手動備援</small></div>
           </div>
           {quoteListNotice && <div className={`quote-list-notice quote-list-notice-${quoteListNotice.kind}`} role={quoteListNotice.kind === 'error' ? 'alert' : 'status'}><Info size={14} />{quoteListNotice.message}</div>}
           {filteredStocks.length === 0 ? (
             <EmptyState icon={WalletCards} title={search ? '找不到符合的持倉' : '還沒有股票資產'} description={search ? '換一個代號或名稱試試。' : '輸入第一筆股票，首頁就會開始計算總資產。'} actionLabel={search ? undefined : '新增股票'} onAction={search ? undefined : openNewStock} />
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap stock-desktop-table">
               <table className="data-table">
                 <thead><tr><th>股票</th><th>持有股數</th><th>現價</th><th>市值</th><th>未實現損益</th><th>質押擔保</th><th aria-label="操作" /></tr></thead>
                 <tbody>
@@ -421,7 +441,8 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
               </table>
             </div>
           )}
-          <div className="table-note"><Info size={15} /> 市值 = 持有股數 × 現價 × 匯率；自動價格來自第三方公開行情，可能延遲或暫時無法使用。</div>
+          {filteredStocks.length > 0 && <div className="stock-mobile-list">{filteredStocks.map((stock) => <StockMobileCard key={stock.id} stock={stock} displayMode={displayMode} onEdit={() => openEditStock(stock)} onDelete={() => void handleDeleteStock(stock)} />)}</div>}
+          <div className="table-note stock-table-note"><Info size={15} /> 市值 = 持有股數 × 現價 × 匯率；自動價格來自第三方公開行情，可能延遲或暫時無法使用。</div>
         </section>
       ) : activeTab === 'cash' ? (
         <section className="card asset-table-card">
