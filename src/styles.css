@@ -335,7 +335,7 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
   .stock-mobile-card-dividend small { display: block; margin: 3px 0 0; }
 }
 
-/* V1.6.2 reinvestment yield assumption and quote status. */
+/* V1.6.3 dividend refresh and reinvestment yield assumption status. */
 .simulation-yield-note { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; color: var(--ink-muted); font-size: 10px; line-height: 1.5; }
 .simulation-yield-note svg { flex: 0 0 auto; color: var(--teal); }
 .simulation-yield-note.is-error { color: var(--negative); }

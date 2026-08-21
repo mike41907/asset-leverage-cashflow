@@ -49,7 +49,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.6.2</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.6.3</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -237,14 +237,15 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.6.2 完成項目</div>
+              <div className="section-kicker">V1.6.3 完成項目</div>
               <h2>再投入試算，先把股息資料補完整。</h2>
-              <p>選擇缺少配息資料的股票時，試算會先查詢公開行情；查不到時也能直接輸入年化殖利率假設。</p>
+              <p>資產頁會自動補抓缺少配息資料的持倉；查不到時也能直接輸入年化殖利率假設。</p>
               <div className="next-step-list">
                 <div><span className="check-icon">✓</span>自動帶入目標股票最新價格</div>
                 <div><span className="check-icon">✓</span>自動抓近 12 個月或前一年度配息</div>
                 <div><span className="check-icon">✓</span>新增年股息同步反映每月現金流</div>
                 <div><span className="check-icon">✓</span>可覆寫年化殖利率，明確區分股息與價差</div>
+                <div><span className="check-icon">✓</span>00919、00713、00929 等 ETF 會帶入近 12 個月配息</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

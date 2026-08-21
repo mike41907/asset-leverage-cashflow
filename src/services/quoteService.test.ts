@@ -145,6 +145,34 @@ describe('quote service', () => {
     })
   })
 
+  it('sums quarterly and monthly ETF distributions for Taiwan high-dividend symbols', () => {
+    const fetchedAt = '2026-08-21T00:00:00.000Z'
+    const distributions = {
+      '00919.TW': [0.54, 0.54, 0.78, 1],
+      '00713.TW': [0.78, 0.78, 0.78, 1],
+      '00929.TW': [0.08, 0.08, 0.09, 0.09, 0.1, 0.1, 0.11, 0.13, 0.13, 0.26, 0.38, 0.38],
+    } as const
+
+    for (const [symbol, amounts] of Object.entries(distributions)) {
+      const events = Object.fromEntries(amounts.map((amount, index) => [
+        `${symbol}-${index}`,
+        { amount, date: Date.UTC(2025, 8 + index, 1) / 1000 },
+      ]))
+      const payload = {
+        chart: {
+          result: [{
+            ...chartPayload.chart.result[0],
+            events: { dividends: events },
+          }],
+        },
+      }
+      const quote = parseYahooChartPayload(payload, symbol.replace('.TW', ''), 'TW', fetchedAt)
+
+      expect(quote.dividend?.annualDividendPerShare).toBe(Number(amounts.reduce((total, amount) => total + amount, 0).toFixed(6)))
+      expect(quote.dividend?.period).toBe('trailing-12-months')
+    }
+  })
+
   it('extracts JSON when the public reader prefixes the provider response with text', () => {
     const quote = parseYahooChartText(`Title:\nURL Source: https://example.invalid\nMarkdown Content:\n${JSON.stringify(chartPayload)}`, '2330', 'TW', '2026-08-21T03:00:00.000Z')
     expect(quote.price).toBe(1_234.5)

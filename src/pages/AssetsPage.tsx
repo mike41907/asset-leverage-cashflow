@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   Banknote,
   Check,
@@ -194,6 +194,19 @@ function quoteDividendFields(quote: StockQuote, current?: Pick<StockDraft, 'esti
   }
 }
 
+function hasDividendEstimate(value: Pick<StockDraft, 'estimatedAnnualDividendPerShare' | 'estimatedYieldPercent'>): boolean {
+  return value.estimatedAnnualDividendPerShare > 0 || value.estimatedYieldPercent > 0
+}
+
+function needsDividendRefreshForDraft(value: Pick<StockDraft, 'estimatedAnnualDividendPerShare' | 'estimatedYieldPercent' | 'dividendSource'>): boolean {
+  if (value.dividendSource !== 'yahoo-public' && hasDividendEstimate(value)) return false
+  return value.estimatedAnnualDividendPerShare <= 0 || value.estimatedYieldPercent <= 0
+}
+
+function needsAutomaticDividendRefresh(stock: StockAsset): boolean {
+  return !stock.isDemo && stock.market !== 'OTHER' && needsDividendRefreshForDraft(stock)
+}
+
 async function fetchStockQuoteResult(symbol: string, market: Market): Promise<StockQuoteResult> {
   const [quote, exchangeRate] = await Promise.all([
     fetchStockQuote(symbol, market),
@@ -286,6 +299,59 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
   const [isHoldingsImportSaving, setIsHoldingsImportSaving] = useState(false)
   const holdingsImportInputRef = useRef<HTMLInputElement>(null)
   const quoteRequestId = useRef(0)
+  const dividendRefreshAttempted = useRef(new Set<string>())
+  const dividendRefreshInFlight = useRef<Promise<void> | null>(null)
+  const isMounted = useRef(false)
+
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (dividendRefreshInFlight.current) return
+    const candidates = stocks.filter(needsAutomaticDividendRefresh).filter((stock) => {
+      const key = `${stock.id}:${stock.market}:${stock.symbol.trim().toUpperCase()}`
+      if (dividendRefreshAttempted.current.has(key)) return false
+      dividendRefreshAttempted.current.add(key)
+      return true
+    })
+    if (candidates.length === 0) return
+
+    setQuoteListNotice({ kind: 'success', message: `正在自動更新 ${candidates.map((stock) => stock.symbol).join('、')} 的行情、配息與殖利率…` })
+    const run = (async () => {
+      try {
+        const exchangeRatePromise = candidates.some((stock) => stock.market === 'US')
+          ? fetchUsdTwdExchangeRate().catch(() => null)
+          : Promise.resolve(null)
+        const results = await Promise.allSettled(candidates.map(async (stock) => ({
+          stock,
+          quote: await fetchStockQuote(stock.symbol, stock.market),
+        })))
+        const exchangeRate = await exchangeRatePromise
+        const updatedStocks = results.flatMap((result) => result.status === 'fulfilled' && result.value.quote.dividend
+          ? [applyQuoteToStock(result.value.stock, result.value.quote, exchangeRate)]
+          : [])
+        const failedSymbols = results.flatMap((result, index) => result.status === 'rejected' ? [candidates[index].symbol] : [])
+        const noDividendSymbols = results.flatMap((result) => result.status === 'fulfilled' && !result.value.quote.dividend ? [result.value.stock.symbol] : [])
+        if (!isMounted.current) return
+        if (updatedStocks.length > 0) await onSaveStocks(updatedStocks)
+        if (!isMounted.current) return
+        const updatedMessage = updatedStocks.length > 0 ? `已自動補抓 ${updatedStocks.length} 筆行情、年配息與年化殖利率。` : '行情已查詢，但公開資料尚未提供可計算的配息事件。'
+        const failures = failedSymbols.length > 0 ? `失敗：${failedSymbols.join('、')}。` : ''
+        const missing = noDividendSymbols.length > 0 ? `無配息事件：${noDividendSymbols.join('、')}，可手動輸入殖利率。` : ''
+        setQuoteListNotice({ kind: failedSymbols.length > 0 ? 'error' : 'success', message: [updatedMessage, failures, missing].filter(Boolean).join(' ') })
+      } catch (error) {
+        if (isMounted.current) setQuoteListNotice({ kind: 'error', message: `自動補抓配息失敗：${getQuoteErrorMessage(error)}` })
+      }
+    })()
+    dividendRefreshInFlight.current = run
+    void run.finally(() => {
+      if (dividendRefreshInFlight.current === run) dividendRefreshInFlight.current = null
+    })
+  }, [onSaveStocks, stocks])
 
   const filteredStocks = stocks.filter((stock) => `${stock.symbol} ${stock.name}`.toLowerCase().includes(search.toLowerCase()))
   const filteredCash = cash.filter((item) => `${item.label} ${item.currency}`.toLowerCase().includes(search.toLowerCase()))
@@ -435,7 +501,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
     setStockDraft(stockDraftFrom(stock))
     setQuoteState({
       status: 'idle',
-      message: '原有價格與名稱會保留；需要更新時請使用頁面上方的「更新所有行情」。',
+      message: '原有資料會保留；缺少配息資料時，儲存或使用頁面上方的「更新行情與配息」會自動補抓。',
       quote: null,
     })
     setStockModalOpen(true)
@@ -523,7 +589,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
     event.preventDefault()
     let draftToSave = stockDraft
     let quoteResult: StockQuoteResult | null = null
-    if (draftToSave.currentPrice <= 0 && draftToSave.market !== 'OTHER') {
+    if ((draftToSave.currentPrice <= 0 || needsDividendRefreshForDraft(draftToSave)) && draftToSave.market !== 'OTHER') {
       quoteResult = await refreshStockQuote()
       if (quoteResult) {
         const { quote, exchangeRate } = quoteResult
@@ -665,7 +731,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
       if (updatedStocks.length > 0) await onSaveStocks(updatedStocks)
 
       const skippedOtherMarket = stocks.length - refreshableStocks.length
-      const summary = `已更新 ${updatedStocks.length}/${refreshableStocks.length} 筆行情。`
+      const summary = `已更新 ${updatedStocks.length}/${refreshableStocks.length} 筆行情、配息與殖利率。`
       const failures = failedStocks.length > 0 ? `失敗：${failedStocks.map((item) => `${item.symbol}（${item.error}）`).join('、')}` : ''
       const skipped = skippedOtherMarket > 0 ? `另有 ${skippedOtherMarket} 筆其他市場未更新。` : ''
       setQuoteListNotice({ kind: failedStocks.length > 0 ? 'error' : 'success', message: [summary, failures, skipped].filter(Boolean).join(' ') })
@@ -723,11 +789,11 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />資產資料庫</div>
           <h1>你的資產，<span>一筆一筆記清楚。</span></h1>
-        <p>新增股票時會帶入公開行情與 USD/TWD 匯率；成本與配息仍由你控制，查不到時也能手動輸入。</p>
+        <p>新增或開啟資產頁會帶入公開行情、中文名稱與近 12 個月配息；查不到公開資料時仍可手動輸入。</p>
         </div>
         <input ref={holdingsImportInputRef} className="visually-hidden" type="file" accept="image/*" multiple onChange={(event) => void handleHoldingsImportFiles(event)} />
         <div className="heading-actions asset-heading-actions">
-          {activeTab === 'stocks' && <button type="button" className="button button-secondary" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新所有行情'}</button>}
+          {activeTab === 'stocks' && <button type="button" className="button button-secondary" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新行情與配息'}</button>}
           {activeTab === 'stocks' && <button type="button" className="button button-secondary" onClick={openHoldingsImportPicker}><ScanLine size={16} />從截圖匯入</button>}
           <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : activeTab === 'cash' ? openNewCash : activeTab === 'crypto' ? openNewCrypto : openNewRealEstate}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : activeTab === 'cash' ? '現金' : activeTab === 'crypto' ? '虛擬貨幣' : '房產'}</button>
         </div>
