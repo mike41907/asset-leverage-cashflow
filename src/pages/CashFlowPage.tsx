@@ -1,17 +1,22 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { ArrowDownRight, ArrowUpRight, Check, CircleDollarSign, Edit3, Info, Plus, ReceiptText, ShieldCheck, Trash2, X } from 'lucide-react'
-import type { CashFlowItem, CashFlowType, Loan } from '../domain/models'
+import type { CashFlowItem, CashFlowType, DividendTarget, Loan, StockAsset } from '../domain/models'
 import { calculateMonthlyCashFlowBreakdown, type PortfolioSummary } from '../domain/calculations'
 import { formatCurrencyWithSign, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
+import { PassiveIncomeTarget } from '../components/PassiveIncomeTarget'
 
 interface CashFlowPageProps {
   items: CashFlowItem[]
   loans: Loan[]
+  stocks: StockAsset[]
+  targets: DividendTarget[]
   summary: PortfolioSummary
   displayMode: 'exact' | 'compact'
   onSaveItem: (item: CashFlowItem) => Promise<void>
   onDeleteItem: (item: CashFlowItem) => Promise<void>
+  onSaveTarget: (target: DividendTarget) => Promise<void>
+  onDeleteTarget: (target: DividendTarget) => Promise<void>
 }
 
 interface CashFlowDraft {
@@ -115,10 +120,11 @@ function CashFlowItemModal({ item, initialType, onClose, onSave }: { item: CashF
   )
 }
 
-export function CashFlowPage({ items, loans, summary, displayMode, onSaveItem, onDeleteItem }: CashFlowPageProps) {
+export function CashFlowPage({ items, loans, stocks, targets, summary, displayMode, onSaveItem, onDeleteItem, onSaveTarget, onDeleteTarget }: CashFlowPageProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<CashFlowItem | null>(null)
   const [newItemType, setNewItemType] = useState<CashFlowType>('income')
+  const [activeView, setActiveView] = useState<'cashflow' | 'target'>('cashflow')
   const breakdown = useMemo(() => calculateMonthlyCashFlowBreakdown(items, summary.monthlyEstimatedDividendTwd, summary.monthlyLoanInterestTwd, summary.monthlyLoanPrincipalTwd), [items, summary.monthlyEstimatedDividendTwd, summary.monthlyLoanInterestTwd, summary.monthlyLoanPrincipalTwd])
 
   const openNew = (type: CashFlowType) => {
@@ -144,10 +150,11 @@ export function CashFlowPage({ items, loans, summary, displayMode, onSaveItem, o
   return (
     <div className="page-container cashflow-page">
       <section className="page-heading">
-        <div><div className="eyebrow"><span className="eyebrow-mark" />現金流規劃 / V0.5</div><h1>把流入流出，<span>放在同一張月表。</span></h1><p>把薪資、股息、固定支出與借款成本拆開看，先知道每個月真正可以留下多少。</p></div>
-        <div className="heading-actions"><span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span><button type="button" className="button button-primary" onClick={() => openNew('income')}><Plus size={17} />新增現金流</button></div>
+        <div><div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'cashflow' ? '現金流規劃 / V0.5' : '被動收入目標 / V0.6'}</div><h1>{activeView === 'cashflow' ? <>把流入流出，<span>放在同一張月表。</span></> : <>先定義每月想要的錢，<span>再反推需要的資產。</span></>}</h1><p>{activeView === 'cashflow' ? '把薪資、股息、固定支出與借款成本拆開看，先知道每個月真正可以留下多少。' : '用殖利率或每股配息估算所需資產；淨領目標也能把每月借款成本一起納入。'}</p></div>
+        <div className="heading-actions"><span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span><div className="segmented-control cashflow-view-switch" role="tablist" aria-label="現金流功能"><button type="button" role="tab" aria-selected={activeView === 'cashflow'} className={activeView === 'cashflow' ? 'is-active' : ''} onClick={() => setActiveView('cashflow')}>月現金流</button><button type="button" role="tab" aria-selected={activeView === 'target'} className={activeView === 'target' ? 'is-active' : ''} onClick={() => setActiveView('target')}>被動收入目標</button></div>{activeView === 'cashflow' && <button type="button" className="button button-primary" onClick={() => openNew('income')}><Plus size={17} />新增現金流</button>}</div>
       </section>
 
+      {activeView === 'target' ? <PassiveIncomeTarget stocks={stocks} summary={summary} targets={targets} displayMode={displayMode} onSaveTarget={onSaveTarget} onDeleteTarget={onDeleteTarget} /> : <>
       <section className={`card cashflow-hero-card ${breakdown.netCashFlowTwd >= 0 ? 'is-positive' : 'is-negative'}`}>
         <div className="cashflow-hero-main"><div className="section-kicker">每月自由現金流</div><div className="cashflow-hero-value">{formatCurrencyWithSign(breakdown.netCashFlowTwd, displayMode)}</div><p>所有收入 − 所有支出；股息、借款利息與本金會依目前資料自動帶入。</p></div>
         <div className="cashflow-summary-grid"><div><span>每月總收入</span><strong className="positive-text">{formatTwd(breakdown.totalIncomeTwd, displayMode)}</strong><small>手動收入＋股息</small></div><div><span>投資收入</span><strong className="positive-text">{formatTwd(breakdown.investmentIncomeTwd, displayMode)}</strong><small>股票／ETF 股息</small></div><div><span>每月總支出</span><strong className="negative-text">{formatTwd(breakdown.totalExpenseTwd, displayMode)}</strong><small>生活費＋借款成本</small></div><div><span>借款成本</span><strong className="negative-text">{formatTwd(breakdown.loanInterestTwd + breakdown.loanPrincipalTwd, displayMode)}</strong><small>利息＋本金</small></div></div>
@@ -164,6 +171,7 @@ export function CashFlowPage({ items, loans, summary, displayMode, onSaveItem, o
       <div className="formula-note"><span className="formula-note-mark">Σ</span><span><strong>本頁計算原則：</strong>每月淨現金流 = 手動收入 + 股票／ETF 股息 − 手動支出 − 質押利息 − 質押本金；停用的手動項目不會列入計算。</span></div>
 
       {modalOpen && <CashFlowItemModal key={editingItem?.id ?? `new-${newItemType}`} item={editingItem} initialType={newItemType} onClose={() => setModalOpen(false)} onSave={onSaveItem} />}
+      </>}
     </div>
   )
 }

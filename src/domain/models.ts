@@ -7,6 +7,7 @@ export type NumberDisplayMode = 'exact' | 'compact'
 export type AssetKind = 'stock' | 'cash' | 'other'
 export type CashFlowType = 'income' | 'expense'
 export type RepaymentMethod = 'interest-only' | 'equal-principal' | 'amortized'
+export type DividendIncomeMode = 'gross' | 'net'
 
 export interface Asset {
   id: string
@@ -118,9 +119,14 @@ export interface DividendTarget {
   name: string
   monthlyNetTarget: number
   monthlyDebtCost: number
+  incomeMode: DividendIncomeMode
   mode: 'yield' | 'per-share'
+  stockAssetId: string | null
+  symbol: string
+  assetName: string
   annualYieldPercent: number
   annualDividendPerShare: number
+  quarterlyDividends: number[]
   currentPrice: number
   createdAt: string
   updatedAt: string

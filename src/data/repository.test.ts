@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { deleteDatabase } from './database'
-import type { CashFlowItem, Collateral, Loan } from '../domain/models'
-import { clearDemoData, deleteCashFlowItem, deleteLoanBundle, loadAppState, saveCashFlowItem, saveLoanBundle, saveStock } from './repository'
+import type { CashFlowItem, Collateral, DividendTarget, Loan } from '../domain/models'
+import { clearDemoData, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, loadAppState, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveStock } from './repository'
 
 describe('local repository', () => {
   beforeEach(async () => {
@@ -98,5 +98,34 @@ describe('local repository', () => {
     await deleteCashFlowItem(item.id)
     const deleted = await loadAppState()
     expect(deleted.cashFlowItems.some((existing) => existing.id === item.id)).toBe(false)
+  })
+
+  it('persists and deletes a passive income target locally', async () => {
+    await loadAppState()
+    const target: DividendTarget = {
+      id: 'target-test',
+      name: '測試被動收入目標',
+      monthlyNetTarget: 40_000,
+      monthlyDebtCost: 5_000,
+      incomeMode: 'net',
+      mode: 'yield',
+      stockAssetId: 'demo-stock-00878',
+      symbol: '00878',
+      assetName: '國泰永續高股息',
+      annualYieldPercent: 5.45,
+      annualDividendPerShare: 1.2,
+      quarterlyDividends: [0.3, 0.3, 0.3, 0.3],
+      currentPrice: 22,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await saveDividendTarget(target)
+    const saved = await loadAppState()
+    expect(saved.dividendTargets).toContainEqual(target)
+
+    await deleteDividendTarget(target.id)
+    const deleted = await loadAppState()
+    expect(deleted.dividendTargets.some((existing) => existing.id === target.id)).toBe(false)
   })
 })

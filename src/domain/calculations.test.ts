@@ -7,6 +7,7 @@ import {
   calculateNetWorth,
   calculateMonthlyCashFlow,
   calculateMonthlyCashFlowBreakdown,
+  calculatePerShareDividendTarget,
   calculatePortfolioSummary,
   calculateRequiredShares,
   calculateReinvestmentSimulation,
@@ -82,6 +83,23 @@ describe('portfolio calculations', () => {
 
   it('rounds required shares up to a whole share', () => {
     expect(calculateRequiredShares(480_000, 6.5)).toBe(73_847)
+  })
+
+  it('calculates required shares and principal from four quarterly dividends', () => {
+    const result = calculatePerShareDividendTarget(480_000, [1, 1, 1, 1], 20)
+
+    expect(result.annualDividendPerShareTwd).toBe(4)
+    expect(result.requiredShares).toBe(120_000)
+    expect(result.requiredPrincipalTwd).toBe(2_400_000)
+  })
+
+  it('returns no per-share target when dividends or price are missing', () => {
+    expect(calculatePerShareDividendTarget(480_000, [0, 0, 0, 0], 20)).toMatchObject({
+      annualDividendPerShareTwd: 0,
+      requiredShares: null,
+      requiredPrincipalTwd: null,
+    })
+    expect(calculatePerShareDividendTarget(480_000, [1, 1, 1, 1], 0).requiredPrincipalTwd).toBeNull()
   })
 
   it('separates manual cash flow, investment income, and debt service', () => {

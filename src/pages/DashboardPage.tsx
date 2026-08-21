@@ -46,7 +46,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.5</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.6</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -213,14 +213,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V0.5 完成項目</div>
-              <h2>每個月真正可以留下多少？</h2>
-              <p>現在可以把收入、支出、股息與借款成本放在同一張月表，先看清楚自由現金流。</p>
+              <div className="section-kicker">V0.6 完成項目</div>
+              <h2>把每月目標，換算成資產需求。</h2>
+              <p>現在可以用殖利率或每股配息反推所需本金，也能把借款成本納入淨領目標。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>總資產與淨資產分離計算</div>
-                <div><span className="check-icon">✓</span>收入／支出項目可分開管理</div>
-                <div><span className="check-icon">✓</span>股息、利息與本金自動帶入</div>
-                <div><span className="check-icon">✓</span>市場壓力測試與碰線反推</div>
+                <div><span className="check-icon">✓</span>殖利率模式反推所需本金</div>
+                <div><span className="check-icon">✓</span>Q1–Q4 每股配息反推股數</div>
+                <div><span className="check-icon">✓</span>淨領目標納入每月借款成本</div>
+                <div><span className="check-icon">✓</span>目標保存於本機 IndexedDB</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

@@ -98,6 +98,12 @@ export interface DividendTargetResult {
   requiredPrincipalTwd: number | null
 }
 
+export interface PerShareDividendTargetResult {
+  annualDividendPerShareTwd: number
+  requiredShares: number | null
+  requiredPrincipalTwd: number | null
+}
+
 export interface MonthlyCashFlowBreakdown {
   manualIncomeTwd: number
   manualExpenseTwd: number
@@ -291,6 +297,22 @@ export function calculateRequiredShares(
   const annualDividendTwdPerShare = finitePositive(annualDividendPerShare) * finitePositive(exchangeRateToTwd || 1)
   if (annualDividendTwdPerShare <= 0 || annualIncomeTargetTwd <= 0) return null
   return Math.ceil(annualIncomeTargetTwd / annualDividendTwdPerShare)
+}
+
+export function calculatePerShareDividendTarget(
+  annualIncomeTargetTwd: number,
+  quarterlyDividends: readonly number[],
+  currentPriceTwd: number,
+): PerShareDividendTargetResult {
+  const annualDividendPerShareTwd = sum(quarterlyDividends.map(finitePositive))
+  const requiredShares = calculateRequiredShares(annualIncomeTargetTwd, annualDividendPerShareTwd)
+  const safeCurrentPriceTwd = finitePositive(currentPriceTwd)
+
+  return {
+    annualDividendPerShareTwd,
+    requiredShares,
+    requiredPrincipalTwd: requiredShares !== null && safeCurrentPriceTwd > 0 ? requiredShares * safeCurrentPriceTwd : null,
+  }
 }
 
 export function calculateStressTest(input: StressTestInput): StressTestResult {

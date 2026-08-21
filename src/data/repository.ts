@@ -103,6 +103,14 @@ export async function deleteCashFlowItem(id: string): Promise<void> {
   await deleteFromStore(STORE_NAMES.cashFlowItems, id)
 }
 
+export async function saveDividendTarget(target: DividendTarget): Promise<void> {
+  await putInStore(STORE_NAMES.dividendTargets, target)
+}
+
+export async function deleteDividendTarget(id: string): Promise<void> {
+  await deleteFromStore(STORE_NAMES.dividendTargets, id)
+}
+
 export async function saveSettings(settings: AppSettings): Promise<void> {
   await putInStore(STORE_NAMES.settings, { ...settings, updatedAt: now() })
 }
