@@ -165,7 +165,7 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
             <div className="range-endpoints"><span>0% 保留現金</span><span>100% 全部投入</span></div>
           </div>
 
-          <div className="simulation-note"><Info size={15} /><span>期間 {borrowingMonths} 個月・{repaymentMethod === 'interest-only' ? '只繳利息' : repaymentMethod === 'equal-principal' ? '本金平均攤還' : '本息平均攤還'}；目前先以起始借款餘額估算利息。</span></div>
+          <div className="simulation-note"><Info size={15} /><span>期間 {borrowingMonths} 個月・{repaymentMethod === 'interest-only' ? '只繳利息' : repaymentMethod === 'equal-principal' ? '本金平均攤還' : '本息平均攤還'}；目前先以起始借款金額估算利息。</span></div>
         </section>
 
         <section className="simulation-results-column">

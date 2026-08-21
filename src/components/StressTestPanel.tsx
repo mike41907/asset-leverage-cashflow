@@ -32,7 +32,7 @@ function statusDescription(status: MaintenanceStatus, hasLoans: boolean): string
   if (!hasLoans) return '目前沒有實際借款，壓力測試仍會先展示資產與淨資產的變化；建立借款後才會判讀維持率。'
   if (status === 'safe') return '即使套用目前跌幅，維持率仍高於警戒線。請把這個數字當作風險距離，而不是保證。'
   if (status === 'warning') return '壓力情境已進入警戒區，建議先檢查可用現金、還款安排與擔保品配置。'
-  if (status === 'danger') return '壓力情境已低於追繳線，請優先檢查借款餘額與補繳／降槓桿方案。'
+  if (status === 'danger') return '壓力情境已低於追繳線，請優先檢查剩餘借款本金與補繳／降槓桿方案。'
   return '建立借款與擔保品後，這裡會顯示壓力情境下的維持率。'
 }
 
@@ -133,7 +133,7 @@ export function StressTestPanel({ stocks, loans, collaterals, settings, summary,
           <label className="stress-number-field"><span>自訂</span><input type="number" min="0" max="100" step="1" value={dropPercent} aria-label="自訂市場跌幅數字" onChange={(event) => updateDrop(Number(event.target.value))} /><em>%</em></label>
         </div>
         <div className="range-endpoints stress-range-endpoints"><span>0% 不變</span><span>100% 歸零</span></div>
-        <div className="stress-assumption-note"><Info size={15} /><span>計算假設股票與擔保品同步下跌，現金、借款餘額與利率維持不變；這是風險情境試算，不是即時行情或金融機構通知。</span></div>
+        <div className="stress-assumption-note"><Info size={15} /><span>計算假設股票與擔保品同步下跌，現金、剩餘借款本金與利率維持不變；這是風險情境試算，不是即時行情或金融機構通知。</span></div>
       </section>
 
       <div className="stress-results-layout">
@@ -151,7 +151,7 @@ export function StressTestPanel({ stocks, loans, collaterals, settings, summary,
             <div><span>股票市值</span><strong>{formatTwd(stress.stockMarketValueTwd, displayMode)}</strong><small>下跌後</small></div>
             <div><span>擔保品市值</span><strong>{formatTwd(stress.collateralValueTwd, displayMode)}</strong><small>同步下跌</small></div>
             <div><span>淨資產</span><strong>{formatTwd(stress.netWorthTwd, displayMode)}</strong><small className="negative-text">減少 {formatPercent(stress.netWorthDropPercent)}</small></div>
-            <div><span>負債比</span><strong>{formatPercent(stress.totalAssetsTwd > 0 ? (summary.totalLiabilitiesTwd / stress.totalAssetsTwd) * 100 : 0)}</strong><small>借款餘額不變</small></div>
+            <div><span>負債比</span><strong>{formatPercent(stress.totalAssetsTwd > 0 ? (summary.totalLiabilitiesTwd / stress.totalAssetsTwd) * 100 : 0)}</strong><small>剩餘借款本金不變</small></div>
           </div>
         </section>
       </div>
@@ -177,7 +177,7 @@ export function StressTestPanel({ stocks, loans, collaterals, settings, summary,
           <div className="stress-reverse-item"><span>跌到警戒線</span><strong>{dropToLineLabel(warningDrop)}</strong><small>維持率 {formatPercent(settings.maintenanceWarningRatioPercent, 0)}</small></div>
           <div className="stress-reverse-item stress-reverse-item-danger"><span>跌到追繳線</span><strong>{dropToLineLabel(marginDrop)}</strong><small>維持率 {formatPercent(settings.maintenanceMarginCallRatioPercent, 0)}</small></div>
         </div>
-        <div className="stress-note"><ArrowDownRight size={15} /><span>{loans.length > 0 ? '反推以目前擔保品市值與借款餘額估算；實際金融機構可能依個別股票折算率、集中度與契約條件判定。' : '尚未建立借款，因此沒有可反推的實際維持率線；先用上方跌幅觀察資產與淨資產變化。'}</span></div>
+        <div className="stress-note"><ArrowDownRight size={15} /><span>{loans.length > 0 ? '反推以目前擔保品市值與剩餘借款本金估算；實際金融機構可能依個別股票折算率、集中度與契約條件判定。' : '尚未建立借款，因此沒有可反推的實際維持率線；先用上方跌幅觀察資產與淨資產變化。'}</span></div>
       </section>
 
       <div className="formula-note"><span className="formula-note-mark">↓</span><span><strong>本頁計算原則：</strong>所有股票與已登錄擔保品按相同跌幅縮放；現金與借款不變，因此淨資產下滑金額等於股票市值下滑金額。</span></div>

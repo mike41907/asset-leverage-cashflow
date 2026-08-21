@@ -272,7 +272,7 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'simulation' ? '投資模擬 / V0.3' : activeView === 'stress' ? '市場壓力測試 / V0.4' : activeView === 'scenarios' ? '多情境比較 / V0.7' : activeView === 'liabilities' ? '家庭負債 / V1.2' : '質押風控 / V0.2'}</div>
           <h1>{activeView === 'simulation' ? <>借款先試算，<span>再決定要不要放大。</span></> : activeView === 'stress' ? <>先問最壞情境，<span>再決定槓桿上限。</span></> : activeView === 'scenarios' ? <>不要只看一個答案，<span>把方案放在同一張表。</span></> : activeView === 'liabilities' ? <>把家庭負債，<span>放進每月現金流。</span></> : <>把槓桿，<span>放在可控範圍內。</span></>}</h1>
-          <p>{activeView === 'simulation' ? '把質押借款投入股票，先比較操作前後的資產、負債、槓桿與現金流。' : activeView === 'stress' ? '把市場跌幅套入目前資產，先看懂維持率與淨資產的風險距離。' : activeView === 'scenarios' ? '保存不同借款與投資配置，並比較年度股息、每月現金流與壓力後維持率。' : activeView === 'liabilities' ? '記錄房貸、車貸與其他固定還款，讓淨資產與月支出更接近家庭現況。' : '記錄借款餘額、利息與擔保品，先看懂維持率，再決定是否擴大投資。'}</p>
+          <p>{activeView === 'simulation' ? '把質押借款投入股票，先比較操作前後的資產、負債、槓桿與現金流。' : activeView === 'stress' ? '把市場跌幅套入目前資產，先看懂維持率與淨資產的風險距離。' : activeView === 'scenarios' ? '保存不同借款與投資配置，並比較年度股息、每月現金流與壓力後維持率。' : activeView === 'liabilities' ? '記錄房貸、車貸與其他固定還款，讓淨資產與月支出更接近家庭現況。' : '記錄剩餘借款本金、利息與擔保品，先看懂維持率，再決定是否擴大投資。'}</p>
         </div>
         <div className="heading-actions">
           <span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span>
@@ -307,11 +307,11 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
         <div className="risk-overview-badges">
           <span className="risk-badge risk-badge-warning">警戒線 {formatPercent(settings.maintenanceWarningRatioPercent, 0)}</span>
           <span className="risk-badge risk-badge-danger">追繳線 {formatPercent(settings.maintenanceMarginCallRatioPercent, 0)}</span>
-          <span className="risk-overview-rule">維持率 = 擔保品市值 ÷ 借款餘額 × 100%</span>
+          <span className="risk-overview-rule">維持率 = 擔保品市值 ÷ 剩餘借款本金 × 100%</span>
         </div>
         <div className="risk-overview-stats">
           <div className="risk-overview-stat"><span>擔保品市值</span><strong>{formatTwd(totalCollateralValue, displayMode)}</strong></div>
-          <div className="risk-overview-stat"><span>借款餘額</span><strong>{formatTwd(totalLoanBalance, displayMode)}</strong></div>
+          <div className="risk-overview-stat"><span>剩餘借款本金</span><strong>{formatTwd(totalLoanBalance, displayMode)}</strong></div>
           <div className="risk-overview-stat"><span>距警戒線</span><strong>{loans.length > 0 ? formatPercent(overview.distanceToWarningPoints) : '—'}</strong></div>
           <div className="risk-overview-stat"><span>借款筆數</span><strong>{loans.length} 筆</strong></div>
         </div>
@@ -319,7 +319,7 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
 
       <section className="section-heading-row loan-list-heading">
         <div><div className="section-kicker">借款清單</div><h2>每一筆負債，都有自己的擔保品。</h2></div>
-        <span className="section-caption">利息依目前餘額估算</span>
+        <span className="section-caption">利息依剩餘本金估算</span>
       </section>
 
       {loans.length === 0 ? (
@@ -338,7 +338,7 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
               <article className={`card loan-card ${statusClass(loanOverview.status)}`} key={loan.id}>
                 <div className="loan-card-header">
                   <div className="loan-card-title"><span className="loan-card-icon"><Banknote size={17} /></span><div><h3>{loan.name || '未命名質押借款'}</h3><small>{loan.institution || '未填寫金融機構'} · 借款日 {loan.borrowedAt || '—'}</small></div></div>
-                  <div className="loan-card-balance"><small>目前餘額</small><strong>{formatTwd(loan.outstandingBalance, displayMode)}</strong></div>
+                  <div className="loan-card-balance"><small>剩餘本金（目前尚欠）</small><strong>{formatTwd(loan.outstandingBalance, displayMode)}</strong></div>
                   <div className="loan-card-actions"><button type="button" className="button button-ghost" onClick={() => openEditLoan(loan)}><Edit3 size={14} />編輯</button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${loan.name || '質押借款'}`} onClick={() => void handleDelete(loan)}><Trash2 size={15} /></button></div>
                 </div>
                 <div className="loan-card-stats">
@@ -361,15 +361,15 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
         </div>
       )}
 
-      <div className="formula-note"><span className="formula-note-mark">↗</span><span><strong>本頁的判讀邏輯：</strong>維持率只反映你輸入的擔保品市值與借款餘額，不代表任何金融機構的正式授信或追繳通知。</span></div>
+      <div className="formula-note"><span className="formula-note-mark">↗</span><span><strong>本頁的判讀邏輯：</strong>維持率只反映你輸入的擔保品市值與剩餘借款本金，不代表任何金融機構的正式授信或追繳通知。</span></div>
 
-      {modalOpen && <Modal title={editingLoan ? '編輯質押借款' : '新增質押借款'} description="借款與擔保品資料只會儲存在這台裝置。" onClose={() => setModalOpen(false)}>
+      {modalOpen && <Modal title={editingLoan ? '編輯質押借款' : '新增質押借款'} description="原始借款本金是最初借款額；剩餘借款本金是目前尚未償還、現在還欠銀行的金額。資料只會儲存在這台裝置。" onClose={() => setModalOpen(false)}>
         <form className="asset-form" onSubmit={(event) => void handleSubmit(event)}>
           <div className="form-grid form-grid-two">
             <FormField label="借款名稱"><input required value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="例如 0050 質押借款" /></FormField>
             <FormField label="金融機構"><input value={draft.institution} onChange={(event) => setDraft((current) => ({ ...current, institution: event.target.value }))} placeholder="例如 XX 證券" /></FormField>
             <FormField label="原始借款本金"><input required min="0" step="any" type="number" value={draft.principal || ''} onChange={(event) => setDraft((current) => ({ ...current, principal: Number(event.target.value) }))} placeholder="0" /></FormField>
-            <FormField label="目前借款餘額"><input required min="0" step="any" type="number" value={draft.outstandingBalance || ''} onChange={(event) => setDraft((current) => ({ ...current, outstandingBalance: Number(event.target.value) }))} placeholder="0" /></FormField>
+            <FormField label="剩餘借款本金（目前尚欠）"><input required min="0" step="any" type="number" value={draft.outstandingBalance || ''} onChange={(event) => setDraft((current) => ({ ...current, outstandingBalance: Number(event.target.value) }))} placeholder="0" /></FormField>
             <FormField label="年利率" hint="%"><input required min="0" step="0.01" type="number" value={draft.annualInterestRatePercent || ''} onChange={(event) => setDraft((current) => ({ ...current, annualInterestRatePercent: Number(event.target.value) }))} placeholder="例如 2.8" /></FormField>
             <FormField label="還款方式"><div className="select-wrap"><select value={draft.repaymentMethod} onChange={(event) => setDraft((current) => ({ ...current, repaymentMethod: event.target.value as RepaymentMethod }))}><option value="interest-only">只繳利息</option><option value="equal-principal">本金平均攤還</option><option value="amortized">本息平均攤還</option></select><SelectChevron /></div></FormField>
             <FormField label="借款日"><input required type="date" value={draft.borrowedAt} onChange={(event) => setDraft((current) => ({ ...current, borrowedAt: event.target.value }))} /></FormField>

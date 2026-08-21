@@ -553,7 +553,7 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
               <button type="button" className="add-asset-dashed" onClick={openNewRealEstate}><Plus size={20} /><span>新增一筆房產</span></button>
             </div>
           )}
-          <div className="table-note"><Info size={15} /> 房產以你輸入的目前估值計入總資產；房貸餘額請到「一般負債／房貸」管理。</div>
+          <div className="table-note"><Info size={15} /> 房產以你輸入的目前估值計入總資產；房貸剩餘本金請到「一般負債／房貸」管理。</div>
         </section>
       )}
 
