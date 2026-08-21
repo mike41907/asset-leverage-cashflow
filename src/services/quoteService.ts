@@ -76,8 +76,21 @@ export function hasChineseName(value: string): boolean {
 
 function getMarketCurrency(market: Market, providerCurrency: unknown): Currency {
   if (market === 'TW') return 'TWD'
+  if (market === 'US') return 'USD'
   if (providerCurrency === 'TWD') return 'TWD'
   return 'USD'
+}
+
+const US_EXCHANGE_PREFIX_PATTERN = /^(?:US|NASDAQ(?:GS|GM|CM)?|NYSE(?:ARCA)?|AMEX|ARCA|OTC)\s*[:/]\s*/i
+const US_MARKET_SUFFIX_PATTERN = /(?:[.:/-]|\s+)US$/i
+
+function normalizeUsYahooSymbol(symbol: string): string {
+  const decorated = symbol.trim().toUpperCase()
+  const withoutExchange = decorated
+    .replace(/^\$\s*/, '')
+    .replace(US_EXCHANGE_PREFIX_PATTERN, '')
+    .replace(US_MARKET_SUFFIX_PATTERN, '')
+  return withoutExchange.replace(/\s+/g, '').replace(/[./]/g, '-')
 }
 
 export function normalizeYahooSymbol(symbol: string, market: Market): string {
@@ -88,7 +101,9 @@ export function normalizeYahooSymbol(symbol: string, market: Market): string {
     if (normalized.endsWith('.TW') || normalized.endsWith('.TWO')) return normalized
     return `${normalized}.TW`
   }
-  return normalized
+  const yahooSymbol = normalizeUsYahooSymbol(symbol)
+  if (!yahooSymbol) throw new Error('請先輸入股票代號。')
+  return yahooSymbol
 }
 
 function readProviderTimestamp(value: unknown): string | null {

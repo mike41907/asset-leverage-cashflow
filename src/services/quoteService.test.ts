@@ -16,6 +16,21 @@ const chartPayload = {
   },
 }
 
+const usChartPayload = {
+  chart: {
+    result: [{
+      meta: {
+        symbol: 'AAPL',
+        longName: 'Apple Inc.',
+        currency: 'USD',
+        regularMarketPrice: 210.25,
+        regularMarketTime: 1_756_000_000,
+      },
+      indicators: { quote: [{ close: [209.8, 210.25] }] },
+    }],
+  },
+}
+
 describe('quote service', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -25,6 +40,9 @@ describe('quote service', () => {
     expect(normalizeYahooSymbol('2330', 'TW')).toBe('2330.TW')
     expect(normalizeYahooSymbol('6488.two', 'TW')).toBe('6488.TWO')
     expect(normalizeYahooSymbol(' aapl ', 'US')).toBe('AAPL')
+    expect(normalizeYahooSymbol('$aapl', 'US')).toBe('AAPL')
+    expect(normalizeYahooSymbol('NASDAQ:AAPL.US', 'US')).toBe('AAPL')
+    expect(normalizeYahooSymbol('NYSE: BRK.B', 'US')).toBe('BRK-B')
     expect(() => normalizeYahooSymbol('2330', 'OTHER')).toThrow('其他市場')
   })
 
@@ -41,6 +59,19 @@ describe('quote service', () => {
       fetchedAt: '2026-08-21T03:00:00.000Z',
     })
     expect(quote.marketAt).toBe(new Date(1_725_000_000 * 1000).toISOString())
+  })
+
+  it('parses a US quote as USD and keeps the user-facing symbol', () => {
+    const quote = parseYahooChartPayload(usChartPayload, 'AAPL', 'US', '2026-08-21T03:00:00.000Z')
+
+    expect(quote).toMatchObject({
+      symbol: 'AAPL',
+      yahooSymbol: 'AAPL',
+      name: 'Apple Inc.',
+      price: 210.25,
+      currency: 'USD',
+      source: 'yahoo-public',
+    })
   })
 
   it('uses trailing twelve-month dividends to calculate the annual per-share amount', () => {
@@ -149,5 +180,27 @@ describe('quote service', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('range=2y')
     expect(fetchMock.mock.calls[0][0]).toContain('events=div%2Csplits')
     expect(quote.price).toBe(1_234.5)
+  })
+
+  it('converts US share-class symbols before requesting the public reader endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({
+        ...usChartPayload,
+        chart: {
+          ...usChartPayload.chart,
+          result: [{
+            ...usChartPayload.chart.result[0],
+            meta: { ...usChartPayload.chart.result[0].meta, symbol: 'BRK-B', longName: 'Berkshire Hathaway Inc. Class B' },
+          }],
+        },
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const quote = await fetchStockQuote('brk.b', 'US')
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/BRK-B?')
+    expect(quote).toMatchObject({ symbol: 'BRK.B', yahooSymbol: 'BRK-B', currency: 'USD' })
   })
 })

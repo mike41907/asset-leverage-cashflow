@@ -47,7 +47,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.3.1</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.3.2</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -222,14 +222,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.3.1 完成項目</div>
-              <h2>把本機資料帶得走，換裝置也不怕。</h2>
-              <p>完整保留投資資產、借款、現金流與模擬方案，備份檔只在你的裝置之間流動。</p>
+              <div className="section-kicker">V1.3.2 完成項目</div>
+              <h2>美股代號更有彈性，行情查詢更順手。</h2>
+              <p>輸入常見美股代號格式，APP 會轉成公開行情服務可辨識的代號並帶入美元價格。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>JSON 備份匯出與格式驗證</div>
-                <div><span className="check-icon">✓</span>可選合併或覆蓋本機資料</div>
-                <div><span className="check-icon">✓</span>PWA 離線啟動與手機導覽</div>
-                <div><span className="check-icon">✓</span>淺色／深色／系統顯示模式</div>
+                <div><span className="check-icon">✓</span>支援 AAPL、TSLA 等一般代號</div>
+                <div><span className="check-icon">✓</span>支援 NASDAQ:AAPL、AAPL.US</div>
+                <div><span className="check-icon">✓</span>支援 BRK.B 等不同股票類別</div>
+                <div><span className="check-icon">✓</span>美股自動使用 USD 顯示</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定
