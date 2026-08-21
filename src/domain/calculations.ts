@@ -167,7 +167,8 @@ export function calculateStockCostBasis(stock: StockAsset): number {
 }
 
 export function calculateStockUnrealizedGain(stock: StockAsset): number {
-  return calculateStockMarketValue(stock) - calculateStockCostBasis(stock)
+  const costBasis = calculateStockCostBasis(stock)
+  return costBasis > 0 ? calculateStockMarketValue(stock) - costBasis : 0
 }
 
 export function calculateStockUnrealizedGainPercent(stock: StockAsset): number | null {

@@ -49,7 +49,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.6.0</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.6.1</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -237,14 +237,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.6.0 完成項目</div>
-              <h2>股票、房產與虛擬貨幣，現在都在同一張資產表。</h2>
-              <p>虛擬貨幣會依數量、成本與目前價格計算未實現損益，美元計價資產再以 USD/TWD 匯率折合台幣。</p>
+              <div className="section-kicker">V1.6.1 完成項目</div>
+              <h2>截圖匯入持倉，加入後自動更新行情。</h2>
+              <p>台股與美股券商截圖會先逐筆確認；只要代號與股數辨識正確即可加入，平均成本可稍後補填。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>新增 BTC、ETH 或其他虛擬貨幣資產</div>
-                <div><span className="check-icon">✓</span>記錄持有數量、平均成本與目前價格</div>
-                <div><span className="check-icon">✓</span>自動計算折合台幣與未實現損益</div>
-                <div><span className="check-icon">✓</span>備份、匯入與本機資料庫同步支援</div>
+                <div><span className="check-icon">✓</span>改善台股／美股列式持倉截圖辨識</div>
+                <div><span className="check-icon">✓</span>代號與股數確認後即可加入</div>
+                <div><span className="check-icon">✓</span>加入時自動查詢目前價格與美元匯率</div>
+                <div><span className="check-icon">✓</span>成本未提供時標示待補，不虛算損益</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

@@ -73,8 +73,52 @@ describe('holdings screenshot import parser', () => {
   it('leaves incomplete rows unselected for manual review', () => {
     const [candidate] = parseHoldingScreenshotText('TSLA Tesla Inc.\nShares 8', 'partial.png')
 
-    expect(candidate).toMatchObject({ symbol: 'TSLA', shares: 8, averageCost: null, currentPrice: null, selected: false, confidence: 'low' })
+    expect(candidate).toMatchObject({ symbol: 'TSLA', shares: 8, averageCost: null, currentPrice: null, selected: true, confidence: 'low' })
     expect(candidate.warnings).toEqual(expect.arrayContaining(['找不到平均成本', '找不到目前價格']))
+  })
+
+  it('parses a mobile broker row with unlabeled shares, price, and market value', () => {
+    const candidates = parseHoldingScreenshotText(`
+      AAOI
+      8 股
+      $143.94 $1,151.54
+      CPNG
+      75 股
+      $27.42 $2,056.83
+      NVDA
+      78.25928 股
+      $61.42 $4,806.36
+      ONDS
+      100 股
+      $8.33 $832.50
+      PLTR
+      1 股
+      $141.87 $141.87
+    `, 'mobile-broker.jpg')
+
+    expect(candidates).toHaveLength(5)
+    expect(candidates[0]).toMatchObject({
+      symbol: 'AAOI',
+      name: 'AAOI',
+      shares: 8,
+      averageCost: null,
+      currentPrice: 143.94,
+      reportedGain: null,
+      selected: true,
+    })
+    expect(candidates[1]).toMatchObject({ symbol: 'CPNG', shares: 75, currentPrice: 27.42 })
+    expect(candidates[2]).toMatchObject({ symbol: 'NVDA', shares: 78.25928, currentPrice: 61.42 })
+    expect(candidates[0].warnings).toEqual(expect.arrayContaining(['找不到平均成本', '目前價格由持倉列辨識，加入時會自動更新']))
+  })
+
+  it('falls back to a plain numeric quantity when OCR drops the shares label', () => {
+    const [candidate] = parseHoldingScreenshotText(`
+      SOUN
+      200
+      10.70 2,140.30
+    `, 'ocr-drop-share-label.png')
+
+    expect(candidate).toMatchObject({ symbol: 'SOUN', shares: 200, currentPrice: 10.7, selected: true })
   })
 
   it('recognizes COST while ignoring cost field labels', () => {

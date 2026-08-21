@@ -99,7 +99,7 @@ function extractLabeledNumber(text: string, label: RegExp, wantPercent: boolean)
 
 function findSymbolTokens(line: string): SymbolToken[] {
   const tokens: SymbolToken[] = []
-  const taiwanPattern = /(?<!\d)(?:\d{4,6}[A-Z]?)(?!\d|[/.-]\d)/gi
+  const taiwanPattern = /(?<![\d.])(?:\d{4,6}[A-Z]?)(?!\d|[/.-]\d)/gi
   for (const match of line.matchAll(taiwanPattern)) {
     const value = match[0].toUpperCase()
     tokens.push({ value, index: match.index ?? 0, market: 'TW' })
@@ -122,7 +122,9 @@ function escapeRegExp(value: string): string {
 }
 
 function looksLikeNameLine(line: string): boolean {
-  return line.length > 1 && !/[$%]/u.test(line) && !FIELD_LABEL_PATTERN.test(line)
+  if (line.length <= 1 || /[$%]/u.test(line) || !/[A-Za-z\u3400-\u9fff]/u.test(line) || FIELD_LABEL_PATTERN.test(line)) return false
+  if (/^\s*[\d,]+(?:\.\d+)?\s*(?:股|shares?|qty|quantity)?\s*$/iu.test(line)) return false
+  return true
 }
 
 function extractName(lines: string[], symbolToken: SymbolToken): string {
@@ -148,6 +150,32 @@ function confidenceFor(shares: number | null, averageCost: number | null, curren
   return completeFields === 3 ? 'high' : completeFields >= 2 ? 'medium' : 'low'
 }
 
+interface BrokerRowValues {
+  shares: number | null
+  currentPrice: number | null
+  marketValue: number | null
+}
+
+function extractBrokerRowValues(blockLines: string[]): BrokerRowValues {
+  const explicitShareLine = blockLines.find((line) => /(?:股(?!票)|shares?|qty|quantity)/iu.test(line) && extractNumbers(line).some((number) => !number.isPercent))
+  const fallbackShareLine = blockLines.slice(1).find((line) => {
+    const numbers = extractNumbers(line).filter((number) => !number.isPercent)
+    return numbers.length === 1 && !/(?:NT\$|US\$|TWD|USD|\$)/iu.test(line) && !FIELD_LABEL_PATTERN.test(line)
+  })
+  const shareLine = explicitShareLine ?? fallbackShareLine
+  const shares = shareLine ? extractNumbers(shareLine).find((number) => !number.isPercent)?.value ?? null : null
+  const moneyLines = blockLines.filter((line) => /(?:NT\$|US\$|TWD|USD|\$)/iu.test(line) && !FIELD_LABEL_PATTERN.test(line))
+  const fallbackLines = blockLines.filter((line) => !shareLine || line !== shareLine).filter((line) => !FIELD_LABEL_PATTERN.test(line) && extractNumbers(line).some((number) => !number.isPercent))
+  const valueLines = moneyLines.length > 0 ? moneyLines : fallbackLines
+  const values = valueLines.flatMap((line) => extractNumbers(line).filter((number) => !number.isPercent).map((number) => number.value))
+
+  return {
+    shares,
+    currentPrice: values[0] ?? null,
+    marketValue: values[1] ?? null,
+  }
+}
+
 function createWarnings(
   shares: number | null,
   averageCost: number | null,
@@ -156,12 +184,14 @@ function createWarnings(
   calculatedGain: number | null,
   inferredCurrentPrice: boolean,
   inferredAverageCost: boolean,
+  rowCurrentPrice: boolean,
 ): string[] {
   const warnings: string[] = []
   if (shares === null) warnings.push('找不到持有股數')
   if (averageCost === null) warnings.push('找不到平均成本')
   if (currentPrice === null) warnings.push('找不到目前價格')
-  if (inferredCurrentPrice) warnings.push('目前價格由市值或損益推算')
+  if (rowCurrentPrice) warnings.push('目前價格由持倉列辨識，加入時會自動更新')
+  else if (inferredCurrentPrice) warnings.push('目前價格由市值或損益推算')
   if (inferredAverageCost) warnings.push('平均成本由總成本除以股數推算')
   if (reportedGain !== null && calculatedGain !== null && Math.abs(reportedGain - calculatedGain) > Math.max(5, Math.abs(reportedGain) * 0.08)) {
     warnings.push('截圖損益與辨識到的成本／價格不完全一致，請確認')
@@ -173,20 +203,23 @@ function parseBlock(blockLines: string[], symbolToken: SymbolToken, sourceFileNa
   const blockText = blockLines.join('\n')
   const market = inferMarket(symbolToken, blockText)
   const currency: Currency = market === 'TW' ? 'TWD' : 'USD'
-  const shares = extractLabeledNumber(blockText, SHARE_LABEL, false)
+  const rowValues = extractBrokerRowValues(blockLines)
+  const shares = extractLabeledNumber(blockText, SHARE_LABEL, false) ?? rowValues.shares
   const explicitAverageCost = extractLabeledNumber(blockText, AVERAGE_COST_LABEL, false)
   const totalCost = extractLabeledNumber(blockText, TOTAL_COST_LABEL, false)
   const inferredAverageCost = explicitAverageCost === null && totalCost !== null && shares !== null && shares > 0
   const averageCost = explicitAverageCost ?? (inferredAverageCost ? totalCost / shares : null)
   const explicitCurrentPrice = extractLabeledNumber(blockText, CURRENT_PRICE_LABEL, false)
-  const marketValue = extractLabeledNumber(blockText, MARKET_VALUE_LABEL, false)
+  const marketValue = extractLabeledNumber(blockText, MARKET_VALUE_LABEL, false) ?? rowValues.marketValue
   const reportedGain = extractLabeledNumber(blockText, GAIN_LABEL, false)
   const reportedGainPercent = extractLabeledNumber(blockText, GAIN_PERCENT_LABEL, true) ?? extractLabeledNumber(blockText, GAIN_LABEL, true)
   const inferredFromMarketValue = explicitCurrentPrice === null && marketValue !== null && shares !== null && shares > 0
   const inferredFromGain = explicitCurrentPrice === null && !inferredFromMarketValue && reportedGain !== null && shares !== null && shares > 0 && averageCost !== null
   const inferredFromGainPercent = explicitCurrentPrice === null && !inferredFromMarketValue && !inferredFromGain && reportedGainPercent !== null && averageCost !== null
   const inferredCurrentPrice = inferredFromMarketValue || inferredFromGain || inferredFromGainPercent
+  const rowCurrentPrice = explicitCurrentPrice === null && rowValues.currentPrice !== null
   const currentPrice = explicitCurrentPrice
+    ?? rowValues.currentPrice
     ?? (inferredFromMarketValue && marketValue !== null && shares !== null ? marketValue / shares : null)
     ?? (inferredFromGain && reportedGain !== null && shares !== null && averageCost !== null ? averageCost + reportedGain / shares : null)
     ?? (inferredFromGainPercent && reportedGainPercent !== null && averageCost !== null ? averageCost * (1 + reportedGainPercent / 100) : null)
@@ -208,8 +241,8 @@ function parseBlock(blockLines: string[], symbolToken: SymbolToken, sourceFileNa
     reportedGain: reportedGain !== null ? Number(reportedGain.toFixed(6)) : null,
     reportedGainPercent: reportedGainPercent !== null ? Number(reportedGainPercent.toFixed(6)) : null,
     confidence,
-    selected: confidence === 'high',
-    warnings: createWarnings(shares, averageCost, currentPrice, reportedGain, calculatedGain, inferredCurrentPrice, inferredAverageCost),
+    selected: shares !== null && shares > 0,
+    warnings: createWarnings(shares, averageCost, currentPrice, reportedGain, calculatedGain, inferredCurrentPrice, inferredAverageCost, rowCurrentPrice),
     rawText: blockText,
   }
 }
@@ -217,7 +250,7 @@ function parseBlock(blockLines: string[], symbolToken: SymbolToken, sourceFileNa
 export function parseHoldingScreenshotText(text: string, sourceFileName = '持倉截圖'): HoldingImportCandidate[] {
   const lines = normalizeLines(text)
   const symbolLines = lines
-    .map((line, index) => ({ line, index, token: findSymbolTokens(line)[0] }))
+    .map((line, index) => ({ line, index, token: findLikelySymbolToken(line) }))
     .filter((item): item is { line: string; index: number; token: SymbolToken } => item.token !== undefined)
   if (symbolLines.length === 0) return []
 
@@ -225,6 +258,17 @@ export function parseHoldingScreenshotText(text: string, sourceFileName = '持�
     const nextLineIndex = symbolLines[index + 1]?.index ?? lines.length
     return parseBlock(lines.slice(item.index, nextLineIndex), item.token, sourceFileName, index)
   })
+}
+
+function findLikelySymbolToken(line: string): SymbolToken | undefined {
+  const tokens = findSymbolTokens(line)
+  return [...tokens].sort((left, right) => right.value.length - left.value.length || left.index - right.index)[0]
+}
+
+function scoreOcrText(text: string): number {
+  const tokens = normalizeLines(text).flatMap((line) => findSymbolTokens(line))
+  const numericLines = normalizeLines(text).filter((line) => extractNumbers(line).length > 0).length
+  return tokens.length * 100 + tokens.reduce((total, token) => total + token.value.length, 0) + numericLines
 }
 
 function loadImage(file: File): Promise<HTMLImageElement> {
@@ -267,7 +311,7 @@ async function preprocessImage(file: File): Promise<HTMLCanvasElement> {
 
 export async function recognizeHoldingImages(files: File[], onProgress?: (progress: OcrProgress) => void): Promise<OcrImageResult[]> {
   if (files.length === 0) return []
-  const { createWorker } = await import('tesseract.js')
+  const { createWorker, PSM } = await import('tesseract.js')
   let currentFileIndex = 0
   const worker = await createWorker(['eng', 'chi_tra'], 1, {
     langPath: 'https://tessdata.projectnaptha.com/4.0.0',
@@ -284,15 +328,20 @@ export async function recognizeHoldingImages(files: File[], onProgress?: (progre
   })
 
   try {
-    await worker.setParameters({ preserve_interword_spaces: '1' })
+    await worker.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: PSM.SINGLE_BLOCK, user_defined_dpi: '300' })
     const results: OcrImageResult[] = []
     for (let index = 0; index < files.length; index += 1) {
       currentFileIndex = index
       const file = files[index]
       onProgress?.({ currentFile: index + 1, totalFiles: files.length, fileName: file.name, percent: Math.round((index / files.length) * 100), status: '辨識圖片' })
       const canvas = await preprocessImage(file)
-      const result = await worker.recognize(canvas)
-      results.push({ fileName: file.name, text: result.data.text, confidence: Number.isFinite(result.data.confidence) ? result.data.confidence : null })
+      const blockResult = await worker.recognize(canvas)
+      await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT })
+      const sparseResult = await worker.recognize(canvas)
+      const blockText = blockResult.data.text
+      const sparseText = sparseResult.data.text
+      const text = scoreOcrText(sparseText) > scoreOcrText(blockText) ? sparseText : blockText
+      results.push({ fileName: file.name, text, confidence: Number.isFinite(blockResult.data.confidence) ? blockResult.data.confidence : null })
       onProgress?.({ currentFile: index + 1, totalFiles: files.length, fileName: file.name, percent: Math.round(((index + 1) / files.length) * 100), status: '完成' })
     }
     return results

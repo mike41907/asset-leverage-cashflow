@@ -229,7 +229,7 @@ function StockMobileCard({ stock, displayMode, onEdit, onDelete }: { stock: Stoc
         <div className="stock-mobile-card-actions"><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={onEdit}><Edit3 size={17} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={onDelete}><Trash2 size={17} /></button></div>
       </div>
       <div className="stock-mobile-card-main">
-        <div className="stock-mobile-card-holding"><span>持有 {formatNumber(stock.shares)}</span><small>成本 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.averageCost, 2)}</small></div>
+        <div className="stock-mobile-card-holding"><span>持有 {formatNumber(stock.shares)}</span><small>{stock.averageCost > 0 ? `成本 ${stock.currency === 'USD' ? '$' : 'NT$'}${formatNumber(stock.averageCost, 2)}` : '成本待補'}</small></div>
         <div className="stock-mobile-card-value"><span>市值</span><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong><small>現價 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</small>{stock.currency === 'USD' && <small className="exchange-rate-note">匯率 {formatNumber(stock.exchangeRateToTwd, 4)} TWD/USD</small>}</div>
       </div>
       <div className="stock-mobile-card-footer"><span className={isPositive ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)} <small>{formatPercent(gainPercent)}</small></span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span><span className="stock-mobile-card-dividend">年配息 {dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)} · 殖利率 {formatPercent(stock.estimatedYieldPercent)}<small>{dividendPeriodLabel(stock.dividendPeriod)}</small></span><span className="stock-mobile-card-collateral">質押擔保 {stock.asCollateral ? '是' : '否'}</span></div>
@@ -283,6 +283,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
   const [holdingsImportMessage, setHoldingsImportMessage] = useState('')
   const [holdingsImportProgress, setHoldingsImportProgress] = useState<OcrProgress | null>(null)
   const [holdingsImportCandidates, setHoldingsImportCandidates] = useState<HoldingImportCandidate[]>([])
+  const [isHoldingsImportSaving, setIsHoldingsImportSaving] = useState(false)
   const holdingsImportInputRef = useRef<HTMLInputElement>(null)
   const quoteRequestId = useRef(0)
 
@@ -312,6 +313,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
     setHoldingsImportMessage('圖片只會在本機處理，正在準備 OCR…')
     setHoldingsImportProgress(null)
     setHoldingsImportCandidates([])
+    setIsHoldingsImportSaving(false)
     try {
       const ocrResults = await recognizeHoldingImages(files, (progress) => {
         setHoldingsImportProgress(progress)
@@ -337,65 +339,95 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
 
   const handleConfirmHoldingsImport = async () => {
     const selectedCandidates = holdingsImportCandidates.filter((candidate) => candidate.selected)
-    const incomplete = selectedCandidates.filter((candidate) => !candidate.symbol.trim() || !candidate.name.trim() || candidate.shares === null || candidate.shares <= 0 || candidate.averageCost === null || candidate.averageCost <= 0 || candidate.currentPrice === null || candidate.currentPrice <= 0)
+    const incomplete = selectedCandidates.filter((candidate) => !candidate.symbol.trim() || candidate.shares === null || candidate.shares <= 0)
     if (selectedCandidates.length === 0) {
       setHoldingsImportMessage('請至少勾選一筆要加入的持倉。')
       return
     }
     if (incomplete.length > 0) {
-      setHoldingsImportMessage('有勾選的持倉資料尚未補齊，請填入代號、名稱、股數、平均成本與目前價格。')
+      setHoldingsImportMessage('有勾選的持倉缺少股票代號或持有股數，請先補齊這兩欄。平均成本可稍後補填，目前價格會在加入時自動查詢。')
       return
     }
 
-    let usdTwdExchangeRate: UsdTwdExchangeRate | null = null
-    if (selectedCandidates.some((candidate) => candidate.market === 'US')) {
-      try {
-        usdTwdExchangeRate = await fetchUsdTwdExchangeRate()
-      } catch (error) {
-        setHoldingsImportMessage(error instanceof Error ? error.message : '無法取得美元／台幣匯率，請稍後再試。')
-        return
-      }
+    setIsHoldingsImportSaving(true)
+    setHoldingsImportMessage(`正在查詢 ${selectedCandidates.length} 筆最新行情，查不到的標的仍會先加入本機清單…`)
+    try {
+      const quoteCandidates = selectedCandidates
+      const usdTwdExchangeRatePromise = selectedCandidates.some((candidate) => candidate.market === 'US')
+        ? fetchUsdTwdExchangeRate().catch(() => null)
+        : Promise.resolve(null)
+      const quoteResults = await Promise.allSettled(quoteCandidates.map(async (candidate) => ({
+        id: candidate.id,
+        quote: await fetchStockQuote(candidate.symbol, candidate.market),
+      })))
+      const quoteByCandidateId = new Map<string, StockQuote>()
+      const quoteFailures: string[] = []
+      quoteResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') quoteByCandidateId.set(result.value.id, result.value.quote)
+        else quoteFailures.push(quoteCandidates[index].symbol.trim().toUpperCase())
+      })
+      const usdTwdExchangeRate = await usdTwdExchangeRatePromise
+      const time = new Date().toISOString()
+      const importedStocks: StockAsset[] = selectedCandidates.map((candidate) => {
+        const symbol = candidate.symbol.trim().toUpperCase()
+        const quote = quoteByCandidateId.get(candidate.id)
+        const existing = stocks.find((stock) => stock.market === candidate.market && stock.symbol.trim().toUpperCase() === symbol)
+        const quoteName = quote?.name?.trim() ?? ''
+        const candidateName = candidate.name.trim()
+        const importedName = quote && (!candidateName || candidateName.toUpperCase() === symbol) ? quoteName : candidateName || quoteName || symbol
+        const importNote = candidate.reportedGain === null
+          ? `持倉截圖辨識匯入：${candidate.sourceFileName}`
+          : `持倉截圖辨識匯入：${candidate.sourceFileName}；截圖獲利 ${candidate.reportedGain >= 0 ? '+' : ''}${candidate.currency === 'USD' ? '$' : 'NT$'}${formatNumber(Math.abs(candidate.reportedGain))}${candidate.reportedGainPercent === null ? '' : `（${candidate.reportedGainPercent}%）`}`
+        const currentPrice = quote?.price ?? candidate.currentPrice ?? 0
+        const currency = quote?.currency ?? candidate.currency
+        const notes = [
+          existing?.notes.trim(),
+          importNote,
+          candidate.averageCost === null ? '平均成本待補填' : '',
+          quote ? `加入時自動更新行情：${formatQuoteTime(quote.marketAt ?? quote.fetchedAt)}` : currentPrice > 0 ? '目前價格沿用截圖辨識值' : '目前價格尚未取得，請稍後按更新所有行情',
+          quoteFailures.includes(symbol) ? `行情查詢失敗：${symbol}` : '',
+          candidate.market === 'US' && !usdTwdExchangeRate ? 'USD/TWD 匯率待更新' : '',
+        ].filter(Boolean).join('；')
+        return {
+          id: existing?.id ?? createId('stock'),
+          kind: 'stock',
+          createdAt: existing?.createdAt ?? time,
+          updatedAt: time,
+          isDemo: false,
+          symbol,
+          name: importedName,
+          market: candidate.market,
+          currency,
+          exchangeRateToTwd: currency === 'TWD' ? 1 : usdTwdExchangeRate?.rate ?? existing?.exchangeRateToTwd ?? 1,
+          shares: candidate.shares as number,
+          averageCost: candidate.averageCost ?? 0,
+          currentPrice,
+          currentPriceSource: quote ? 'yahoo-public' : 'manual',
+          currentPriceFetchedAt: quote?.fetchedAt,
+          currentPriceMarketAt: quote?.marketAt ?? undefined,
+          estimatedAnnualDividendPerShare: existing?.estimatedAnnualDividendPerShare ?? 0,
+          estimatedYieldPercent: existing?.estimatedYieldPercent ?? 0,
+          dividendSource: existing?.dividendSource,
+          dividendFetchedAt: existing?.dividendFetchedAt,
+          dividendPeriod: existing?.dividendPeriod,
+          dividendPeriodStart: existing?.dividendPeriodStart,
+          dividendPeriodEnd: existing?.dividendPeriodEnd,
+          asCollateral: existing?.asCollateral ?? false,
+          notes,
+          ...((quote && existing) ? quoteDividendFields(quote, existing) : quote ? quoteDividendFields(quote) : {}),
+        }
+      })
+
+      await onSaveStocks(importedStocks)
+      const failureMessage = quoteFailures.length > 0 ? ` ${quoteFailures.length} 筆查價失敗，可稍後按「更新所有行情」。` : ''
+      setHoldingsImportMessage(`已加入 ${importedStocks.length} 筆持倉。${failureMessage}`)
+      setHoldingsImportModalOpen(false)
+      setHoldingsImportCandidates([])
+    } catch (error) {
+      setHoldingsImportMessage(error instanceof Error ? error.message : '加入持倉失敗，請稍後再試。')
+    } finally {
+      setIsHoldingsImportSaving(false)
     }
-
-    const time = new Date().toISOString()
-    const importedStocks: StockAsset[] = selectedCandidates.map((candidate) => {
-      const symbol = candidate.symbol.trim().toUpperCase()
-      const existing = stocks.find((stock) => stock.market === candidate.market && stock.symbol.trim().toUpperCase() === symbol)
-      const importNote = candidate.reportedGain === null
-        ? `持倉截圖辨識匯入：${candidate.sourceFileName}`
-        : `持倉截圖辨識匯入：${candidate.sourceFileName}；截圖獲利 ${candidate.reportedGain >= 0 ? '+' : ''}${candidate.currency === 'USD' ? '$' : 'NT$'}${formatNumber(Math.abs(candidate.reportedGain))}${candidate.reportedGainPercent === null ? '' : `（${candidate.reportedGainPercent}%）`}`
-      return {
-        id: existing?.id ?? createId('stock'),
-        kind: 'stock',
-        createdAt: existing?.createdAt ?? time,
-        updatedAt: time,
-        isDemo: false,
-        symbol,
-        name: candidate.name.trim(),
-        market: candidate.market,
-        currency: candidate.currency,
-        exchangeRateToTwd: candidate.currency === 'TWD' ? 1 : usdTwdExchangeRate?.rate ?? existing?.exchangeRateToTwd ?? 1,
-        shares: candidate.shares as number,
-        averageCost: candidate.averageCost as number,
-        currentPrice: candidate.currentPrice as number,
-        currentPriceSource: 'manual',
-        currentPriceFetchedAt: undefined,
-        currentPriceMarketAt: undefined,
-        estimatedAnnualDividendPerShare: existing?.estimatedAnnualDividendPerShare ?? 0,
-        estimatedYieldPercent: existing?.estimatedYieldPercent ?? 0,
-        dividendSource: existing?.dividendSource,
-        dividendFetchedAt: existing?.dividendFetchedAt,
-        dividendPeriod: existing?.dividendPeriod,
-        dividendPeriodStart: existing?.dividendPeriodStart,
-        dividendPeriodEnd: existing?.dividendPeriodEnd,
-        asCollateral: existing?.asCollateral ?? false,
-        notes: [existing?.notes.trim(), importNote].filter(Boolean).join('；'),
-      }
-    })
-
-    for (const stock of importedStocks) await onSaveStock(stock)
-    setHoldingsImportModalOpen(false)
-    setHoldingsImportCandidates([])
   }
 
   const openEditStock = (stock: StockAsset) => {
@@ -733,7 +765,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
                       <td data-label="持有股數">{formatNumber(stock.shares)}</td>
                       <td data-label="現價"><strong>{stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</strong><small className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</small>{stock.currency === 'USD' && <small className="exchange-rate-note">匯率 {formatNumber(stock.exchangeRateToTwd, 4)} TWD/USD</small>}</td>
                       <td data-label="市值"><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong></td>
-                      <td data-label="未實現損益"><span className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)}</span><small className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatPercent(gainPercent)}</small></td>
+                      <td data-label="未實現損益">{stock.averageCost > 0 ? <><span className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)}</span><small className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatPercent(gainPercent)}</small></> : <span>待補成本</span>}</td>
                       <td data-label="配息／殖利率"><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small className="dividend-source">{formatPercent(stock.estimatedYieldPercent)} · {dividendPeriodLabel(stock.dividendPeriod)}</small></td>
                       <td data-label="質押擔保"><span className={`collateral-tag ${stock.asCollateral ? 'is-on' : ''}`}>{stock.asCollateral ? <><Check size={13} />是</> : '否'}</span></td>
                       <td className="row-actions"><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={() => openEditStock(stock)}><Edit3 size={15} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={() => void handleDeleteStock(stock)}><Trash2 size={15} /></button></td>
@@ -821,7 +853,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
         </section>
       )}
 
-      {holdingsImportModalOpen && <HoldingsScreenshotImportModal status={holdingsImportStatus} progress={holdingsImportProgress} message={holdingsImportMessage} candidates={holdingsImportCandidates} onClose={() => setHoldingsImportModalOpen(false)} onChooseFiles={openHoldingsImportPicker} onUpdateCandidate={updateHoldingsImportCandidate} onConfirm={() => void handleConfirmHoldingsImport()} />}
+      {holdingsImportModalOpen && <HoldingsScreenshotImportModal status={holdingsImportStatus} progress={holdingsImportProgress} message={holdingsImportMessage} candidates={holdingsImportCandidates} onClose={() => setHoldingsImportModalOpen(false)} onChooseFiles={openHoldingsImportPicker} onUpdateCandidate={updateHoldingsImportCandidate} onConfirm={() => void handleConfirmHoldingsImport()} isConfirming={isHoldingsImportSaving} />}
 
       {stockModalOpen && <Modal title={editingStock ? '編輯股票資產' : '新增股票資產'} description="持股資料只存這台裝置；查價時只送股票代號與 USD/TWD 匯率代號給公開行情服務，台股會同步帶入中文名稱與配息資料。" onClose={() => setStockModalOpen(false)}>
         <form className="asset-form" onSubmit={(event) => void handleStockSubmit(event)}>

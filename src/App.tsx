@@ -124,9 +124,12 @@ export default function App() {
     await Promise.all(stocks.map((stock) => saveStock(stock)))
     setState((current) => current ? {
       ...current,
-      stocks: current.stocks.map((existing) => stocks.find((stock) => stock.id === existing.id) ?? existing),
+      stocks: [
+        ...current.stocks.map((existing) => stocks.find((stock) => stock.id === existing.id) ?? existing),
+        ...stocks.filter((stock) => !current.stocks.some((existing) => existing.id === stock.id)),
+      ],
     } : current)
-  }, '股票行情已更新。')
+  }, '股票行情／持倉資料已更新。')
 
   const handleDeleteStock = (id: string) => runAction(async () => {
     await deleteStock(id)
