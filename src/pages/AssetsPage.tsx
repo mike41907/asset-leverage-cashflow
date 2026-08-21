@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   Banknote,
   Check,
@@ -8,6 +8,7 @@ import {
   Info,
   Plus,
   RefreshCw,
+  ScanLine,
   Search,
   Trash2,
   WalletCards,
@@ -18,6 +19,8 @@ import { calculateCashValue, calculateRealEstateValueTwd, calculateStockMarketVa
 import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
 import { EmptyState } from '../components/EmptyState'
+import { HoldingsScreenshotImportModal, type HoldingImportStatus } from '../components/HoldingsScreenshotImportModal'
+import { parseHoldingScreenshotText, recognizeHoldingImages, type HoldingImportCandidate, type OcrProgress } from '../services/holdingsImportService'
 import { fetchStockQuote, hasChineseName, PUBLIC_QUOTE_PROVIDER_LABEL, type StockQuote } from '../services/quoteService'
 
 interface AssetsPageProps {
@@ -232,6 +235,12 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
   const [quoteState, setQuoteState] = useState<QuoteState>(initialQuoteState)
   const [isRefreshingAll, setIsRefreshingAll] = useState(false)
   const [quoteListNotice, setQuoteListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
+  const [holdingsImportModalOpen, setHoldingsImportModalOpen] = useState(false)
+  const [holdingsImportStatus, setHoldingsImportStatus] = useState<HoldingImportStatus>('error')
+  const [holdingsImportMessage, setHoldingsImportMessage] = useState('')
+  const [holdingsImportProgress, setHoldingsImportProgress] = useState<OcrProgress | null>(null)
+  const [holdingsImportCandidates, setHoldingsImportCandidates] = useState<HoldingImportCandidate[]>([])
+  const holdingsImportInputRef = useRef<HTMLInputElement>(null)
   const quoteRequestId = useRef(0)
 
   const filteredStocks = stocks.filter((stock) => `${stock.symbol} ${stock.name}`.toLowerCase().includes(search.toLowerCase()))
@@ -243,6 +252,96 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
     setStockDraft({ ...defaultStockDraft })
     setQuoteState({ ...initialQuoteState })
     setStockModalOpen(true)
+  }
+
+  const openHoldingsImportPicker = () => {
+    holdingsImportInputRef.current?.click()
+  }
+
+  const handleHoldingsImportFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'))
+    event.target.value = ''
+    if (files.length === 0) return
+
+    setHoldingsImportModalOpen(true)
+    setHoldingsImportStatus('recognizing')
+    setHoldingsImportMessage('圖片只會在本機處理，正在準備 OCR…')
+    setHoldingsImportProgress(null)
+    setHoldingsImportCandidates([])
+    try {
+      const ocrResults = await recognizeHoldingImages(files, (progress) => {
+        setHoldingsImportProgress(progress)
+        setHoldingsImportMessage(`${progress.status || '辨識中'} · ${progress.percent}%`)
+      })
+      const candidates = ocrResults.flatMap((result) => parseHoldingScreenshotText(result.text, result.fileName)).map((candidate, index) => ({
+        ...candidate,
+        id: `${candidate.sourceFileName}-${index + 1}`,
+      }))
+      if (candidates.length === 0) throw new Error('沒有辨識到可用的股票代號。請確認截圖清楚包含代號與持倉欄位。')
+      setHoldingsImportCandidates(candidates)
+      setHoldingsImportStatus('review')
+      setHoldingsImportMessage(`已辨識 ${candidates.length} 筆，請逐筆確認後再加入。`)
+    } catch (error) {
+      setHoldingsImportStatus('error')
+      setHoldingsImportMessage(error instanceof Error ? error.message : '截圖辨識失敗，請換一張清楚的持倉截圖再試。')
+    }
+  }
+
+  const updateHoldingsImportCandidate = (id: string, patch: Partial<HoldingImportCandidate>) => {
+    setHoldingsImportCandidates((current) => current.map((candidate) => candidate.id === id ? { ...candidate, ...patch } : candidate))
+  }
+
+  const handleConfirmHoldingsImport = async () => {
+    const selectedCandidates = holdingsImportCandidates.filter((candidate) => candidate.selected)
+    const incomplete = selectedCandidates.filter((candidate) => !candidate.symbol.trim() || !candidate.name.trim() || candidate.shares === null || candidate.shares <= 0 || candidate.averageCost === null || candidate.averageCost <= 0 || candidate.currentPrice === null || candidate.currentPrice <= 0)
+    if (selectedCandidates.length === 0) {
+      setHoldingsImportMessage('請至少勾選一筆要加入的持倉。')
+      return
+    }
+    if (incomplete.length > 0) {
+      setHoldingsImportMessage('有勾選的持倉資料尚未補齊，請填入代號、名稱、股數、平均成本與目前價格。')
+      return
+    }
+
+    const time = new Date().toISOString()
+    const importedStocks: StockAsset[] = selectedCandidates.map((candidate) => {
+      const symbol = candidate.symbol.trim().toUpperCase()
+      const existing = stocks.find((stock) => stock.market === candidate.market && stock.symbol.trim().toUpperCase() === symbol)
+      const importNote = candidate.reportedGain === null
+        ? `持倉截圖辨識匯入：${candidate.sourceFileName}`
+        : `持倉截圖辨識匯入：${candidate.sourceFileName}；截圖獲利 ${candidate.reportedGain >= 0 ? '+' : ''}${candidate.currency === 'USD' ? '$' : 'NT$'}${formatNumber(Math.abs(candidate.reportedGain))}${candidate.reportedGainPercent === null ? '' : `（${candidate.reportedGainPercent}%）`}`
+      return {
+        id: existing?.id ?? createId('stock'),
+        kind: 'stock',
+        createdAt: existing?.createdAt ?? time,
+        updatedAt: time,
+        isDemo: false,
+        symbol,
+        name: candidate.name.trim(),
+        market: candidate.market,
+        currency: candidate.currency,
+        exchangeRateToTwd: candidate.currency === 'TWD' ? 1 : existing?.exchangeRateToTwd ?? 1,
+        shares: candidate.shares as number,
+        averageCost: candidate.averageCost as number,
+        currentPrice: candidate.currentPrice as number,
+        currentPriceSource: 'manual',
+        currentPriceFetchedAt: undefined,
+        currentPriceMarketAt: undefined,
+        estimatedAnnualDividendPerShare: existing?.estimatedAnnualDividendPerShare ?? 0,
+        estimatedYieldPercent: existing?.estimatedYieldPercent ?? 0,
+        dividendSource: existing?.dividendSource,
+        dividendFetchedAt: existing?.dividendFetchedAt,
+        dividendPeriod: existing?.dividendPeriod,
+        dividendPeriodStart: existing?.dividendPeriodStart,
+        dividendPeriodEnd: existing?.dividendPeriodEnd,
+        asCollateral: existing?.asCollateral ?? false,
+        notes: [existing?.notes.trim(), importNote].filter(Boolean).join('；'),
+      }
+    })
+
+    for (const stock of importedStocks) await onSaveStock(stock)
+    setHoldingsImportModalOpen(false)
+    setHoldingsImportCandidates([])
   }
 
   const openEditStock = (stock: StockAsset) => {
@@ -462,8 +561,10 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
           <h1>你的資產，<span>一筆一筆記清楚。</span></h1>
           <p>新增股票時會先帶入公開行情；成本、匯率與配息仍由你控制，查不到時也能手動輸入。</p>
         </div>
-        <div className="heading-actions">
+        <input ref={holdingsImportInputRef} className="visually-hidden" type="file" accept="image/*" multiple onChange={(event) => void handleHoldingsImportFiles(event)} />
+        <div className="heading-actions asset-heading-actions">
           {activeTab === 'stocks' && <button type="button" className="button button-secondary" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新所有行情'}</button>}
+          {activeTab === 'stocks' && <button type="button" className="button button-secondary" onClick={openHoldingsImportPicker}><ScanLine size={16} />從截圖匯入</button>}
           <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : activeTab === 'cash' ? openNewCash : openNewRealEstate}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : activeTab === 'cash' ? '現金' : '房產'}</button>
         </div>
       </section>
@@ -556,6 +657,8 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
           <div className="table-note"><Info size={15} /> 房產以你輸入的目前估值計入總資產；房貸剩餘本金請到「一般負債／房貸」管理。</div>
         </section>
       )}
+
+      {holdingsImportModalOpen && <HoldingsScreenshotImportModal status={holdingsImportStatus} progress={holdingsImportProgress} message={holdingsImportMessage} candidates={holdingsImportCandidates} onClose={() => setHoldingsImportModalOpen(false)} onChooseFiles={openHoldingsImportPicker} onUpdateCandidate={updateHoldingsImportCandidate} onConfirm={() => void handleConfirmHoldingsImport()} />}
 
       {stockModalOpen && <Modal title={editingStock ? '編輯股票資產' : '新增股票資產'} description="持股資料只存這台裝置；查價時只送股票代號給公開行情服務，台股會同步帶入中文名稱與配息資料。" onClose={() => setStockModalOpen(false)}>
         <form className="asset-form" onSubmit={(event) => void handleStockSubmit(event)}>

@@ -47,7 +47,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.3.2</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.4.0</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -222,14 +222,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.3.2 完成項目</div>
-              <h2>美股代號更有彈性，行情查詢更順手。</h2>
-              <p>輸入常見美股代號格式，APP 會轉成公開行情服務可辨識的代號並帶入美元價格。</p>
+              <div className="section-kicker">V1.4.0 完成項目</div>
+              <h2>持倉截圖匯入，先辨識再確認。</h2>
+              <p>上傳券商台股或美股持倉截圖，APP 會在瀏覽器內辨識代號、股數、成本與價格，確認後一次加入持倉。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>支援 AAPL、TSLA 等一般代號</div>
-                <div><span className="check-icon">✓</span>支援 NASDAQ:AAPL、AAPL.US</div>
-                <div><span className="check-icon">✓</span>支援 BRK.B 等不同股票類別</div>
-                <div><span className="check-icon">✓</span>美股自動使用 USD 顯示</div>
+                <div><span className="check-icon">✓</span>支援台股代號與美股代號</div>
+                <div><span className="check-icon">✓</span>辨識股數、平均成本與目前價格</div>
+                <div><span className="check-icon">✓</span>顯示截圖損益並保留人工確認</div>
+                <div><span className="check-icon">✓</span>資料留在瀏覽器，不直接上傳持倉</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定
