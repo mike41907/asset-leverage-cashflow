@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { deleteDatabase } from './database'
 import type { CashFlowItem, Collateral, DividendTarget, Loan, Simulation } from '../domain/models'
-import { clearDemoData, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteSimulation, loadAppState, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSimulation, saveStock } from './repository'
+import { clearDemoData, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteSimulation, loadAppState, replaceAppState, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSimulation, saveStock } from './repository'
 
 describe('local repository', () => {
   beforeEach(async () => {
@@ -161,5 +161,26 @@ describe('local repository', () => {
     await deleteSimulation(simulation.id)
     const deleted = await loadAppState()
     expect(deleted.simulations.some((existing) => existing.id === simulation.id)).toBe(false)
+  })
+
+  it('replaces all application stores without leaving old records behind', async () => {
+    const first = await loadAppState()
+    await saveStock({ ...first.stocks[0], id: 'old-stock', symbol: 'OLD', isDemo: false })
+
+    await replaceAppState({
+      ...first,
+      stocks: [first.stocks[0]],
+      cash: [],
+      loans: [],
+      collaterals: [],
+      cashFlowItems: [],
+      simulations: [],
+      dividendTargets: [],
+    })
+
+    const replaced = await loadAppState()
+    expect(replaced.stocks.map((stock) => stock.id)).toEqual([first.stocks[0].id])
+    expect(replaced.cash).toHaveLength(0)
+    expect(replaced.settings.id).toBe('app')
   })
 })

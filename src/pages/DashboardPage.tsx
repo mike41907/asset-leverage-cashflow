@@ -46,7 +46,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V0.7</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.0</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -213,14 +213,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V0.7 完成項目</div>
-              <h2>不要只看一個答案，先把方案放在一起。</h2>
-              <p>現在可以保存不同借款與投入配置，並比較股息、現金流與壓力後維持率。</p>
+              <div className="section-kicker">V1.0 完成項目</div>
+              <h2>把本機資料帶得走，換裝置也不怕。</h2>
+              <p>完整保留投資資產、借款、現金流與模擬方案，備份檔只在你的裝置之間流動。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>多個借款／投資方案可保存</div>
-                <div><span className="check-icon">✓</span>基準線與方案同表比較</div>
-                <div><span className="check-icon">✓</span>-20%／-30% 維持率比較</div>
-                <div><span className="check-icon">✓</span>年度股息與每月現金流圖表</div>
+                <div><span className="check-icon">✓</span>JSON 備份匯出與格式驗證</div>
+                <div><span className="check-icon">✓</span>可選合併或覆蓋本機資料</div>
+                <div><span className="check-icon">✓</span>PWA 離線啟動與手機導覽</div>
+                <div><span className="check-icon">✓</span>淺色／深色／系統顯示模式</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

@@ -1,16 +1,23 @@
-import { useState } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import { Check, Database, Download, Moon, Palette, RotateCcw, ShieldCheck, Sun, Upload } from 'lucide-react'
-import type { AppSettings, ThemeMode } from '../domain/models'
+import { parseBackupData, type BackupImportMode } from '../data/backup'
+import type { AppSettings, BackupData, ThemeMode } from '../domain/models'
 
 interface SettingsPageProps {
   settings: AppSettings
   hasDemoData: boolean
   onUpdateSettings: (settings: AppSettings) => Promise<void>
   onClearDemoData: () => Promise<void>
+  onExportBackup: () => void
+  onImportBackup: (backup: BackupData, mode: BackupImportMode) => Promise<void>
 }
 
-export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearDemoData }: SettingsPageProps) {
+export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearDemoData, onExportBackup, onImportBackup }: SettingsPageProps) {
   const [isClearing, setIsClearing] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [pendingBackup, setPendingBackup] = useState<BackupData | null>(null)
+  const [backupError, setBackupError] = useState<string | null>(null)
+  const backupInputRef = useRef<HTMLInputElement>(null)
 
   const update = (changes: Partial<AppSettings>) => {
     void onUpdateSettings({ ...settings, ...changes, updatedAt: new Date().toISOString() })
@@ -26,13 +33,46 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
     }
   }
 
+  const handleBackupFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    try {
+      const backup = parseBackupData(await file.text())
+      setPendingBackup(backup)
+      setBackupError(null)
+    } catch (error) {
+      setPendingBackup(null)
+      setBackupError(error instanceof Error ? error.message : '備份檔無法讀取。')
+    }
+  }
+
+  const handleImport = async (mode: BackupImportMode) => {
+    if (!pendingBackup) return
+    if (mode === 'replace' && !window.confirm('覆蓋會清除目前本機的股票、現金、借款、現金流與設定，再換成備份內容。確定繼續嗎？')) return
+
+    setIsImporting(true)
+    try {
+      await onImportBackup(pendingBackup, mode)
+      setPendingBackup(null)
+      setBackupError(null)
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  const backupRecordCount = pendingBackup
+    ? pendingBackup.stocks.length + pendingBackup.cash.length + pendingBackup.loans.length + pendingBackup.collaterals.length + pendingBackup.cashFlowItems.length + pendingBackup.simulations.length + pendingBackup.dividendTargets.length
+    : 0
+
   return (
     <div className="page-container narrow-page-container">
       <section className="page-heading">
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />系統設定</div>
           <h1>讓工具，<span>跟你的習慣一起工作。</span></h1>
-          <p>V0.7 已加入多情境方案比較；這裡集中管理顯示與風控門檻。</p>
+          <p>V1.0 已加入本機 JSON 備份與匯入；這裡集中管理顯示、風控與資料搬移。</p>
         </div>
       </section>
 
@@ -64,11 +104,13 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         <div className="settings-card card">
           <div className="privacy-callout"><div className="privacy-callout-icon"><ShieldCheck size={19} /></div><div><strong>資料留在這台裝置</strong><p>股票、現金與設定都保存於瀏覽器 IndexedDB；沒有 API、雲端同步或 Console 財務資料輸出。</p></div></div>
           <div className="data-action-row"><div><strong>示範資料</strong><span>{hasDemoData ? '目前仍有可刪除的 Demo 股票或現金。' : '示範資料已清除，之後新增的資料不會被移除。'}</span></div><button type="button" className="button button-danger-outline" disabled={!hasDemoData || isClearing} onClick={() => void handleClearDemo}><RotateCcw size={15} />{isClearing ? '清除中…' : '清除示範資料'}</button></div>
-          <div className="data-action-row muted-action"><div><strong>備份與匯入</strong><span>資料模型已預留，完整 JSON 備份流程排在 V1.0。</span></div><div className="future-actions"><button type="button" className="button button-ghost" disabled><Download size={15} />匯出 JSON</button><button type="button" className="button button-ghost" disabled><Upload size={15} />匯入 JSON</button></div></div>
+          <div className="data-action-row backup-action-row"><div><strong>備份與匯入</strong><span>JSON 只在你的裝置產生與讀取，不會上傳資產資料。</span></div><div className="future-actions"><button type="button" className="button button-ghost" onClick={onExportBackup}><Download size={15} />匯出 JSON</button><button type="button" className="button button-ghost" onClick={() => backupInputRef.current?.click()}><Upload size={15} />匯入 JSON</button></div><input ref={backupInputRef} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => void handleBackupFile(event)} /></div>
+          {backupError && <div className="backup-error" role="alert"><strong>備份檔無法匯入</strong><span>{backupError}</span></div>}
+          {pendingBackup && <div className="backup-import-panel"><div><div className="section-kicker">已讀取備份</div><strong>{new Date(pendingBackup.exportedAt).toLocaleString('zh-TW')} · {backupRecordCount} 筆資料</strong><p>合併會以備份中的相同 ID 覆蓋本機同筆資料；覆蓋則會先清除本機資料。</p></div><div className="backup-import-actions"><button type="button" className="button button-primary" disabled={isImporting} onClick={() => void handleImport('merge')}>{isImporting ? '處理中…' : '合併到本機'}</button><button type="button" className="button button-danger-outline" disabled={isImporting} onClick={() => void handleImport('replace')}>覆蓋本機資料</button><button type="button" className="button button-ghost" disabled={isImporting} onClick={() => setPendingBackup(null)}>取消</button></div></div>}
         </div>
       </section>
 
-      <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V0.7.0</span></footer>
+      <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V1.0.0</span></footer>
     </div>
   )
 }

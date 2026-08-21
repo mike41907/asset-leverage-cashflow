@@ -54,6 +54,14 @@ function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   })
 }
 
+function transactionToPromise(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve()
+    transaction.onerror = () => reject(transaction.error ?? new Error('IndexedDB 交易失敗。'))
+    transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB 交易已中止。'))
+  })
+}
+
 export async function getAllFromStore<T>(storeName: StoreName): Promise<T[]> {
   const database = await openDatabase()
   const transaction = database.transaction(storeName, 'readonly')
@@ -76,6 +84,22 @@ export async function deleteFromStore(storeName: StoreName, key: IDBValidKey): P
   const database = await openDatabase()
   const transaction = database.transaction(storeName, 'readwrite')
   await requestToPromise(transaction.objectStore(storeName).delete(key))
+}
+
+export async function replaceStores(records: Partial<Record<StoreName, readonly object[]>>): Promise<void> {
+  const storeNames = Object.keys(records) as StoreName[]
+  if (storeNames.length === 0) return
+
+  const database = await openDatabase()
+  const transaction = database.transaction(storeNames, 'readwrite')
+
+  for (const storeName of storeNames) {
+    const objectStore = transaction.objectStore(storeName)
+    objectStore.clear()
+    for (const record of records[storeName] ?? []) objectStore.put(record)
+  }
+
+  await transactionToPromise(transaction)
 }
 
 export async function deleteDatabase(): Promise<void> {

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AppShell } from './components/AppShell'
 import { calculatePortfolioSummary } from './domain/calculations'
-import type { AppState, AppSettings, CashAsset, CashFlowItem, Collateral, DividendTarget, Loan, PageKey, Simulation, StockAsset } from './domain/models'
-import { clearDemoData, deleteCash, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteSimulation, deleteStock, loadAppState, saveCash, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSettings, saveSimulation, saveStock } from './data/repository'
+import type { AppState, AppSettings, BackupData, CashAsset, CashFlowItem, Collateral, DividendTarget, Loan, PageKey, Simulation, StockAsset } from './domain/models'
+import { backupToAppState, createBackupData, mergeBackupIntoAppState, serializeBackupData, type BackupImportMode } from './data/backup'
+import { clearDemoData, deleteCash, deleteCashFlowItem, deleteDividendTarget, deleteLoanBundle, deleteSimulation, deleteStock, loadAppState, replaceAppState, saveAppState, saveCash, saveCashFlowItem, saveDividendTarget, saveLoanBundle, saveSettings, saveSimulation, saveStock } from './data/repository'
 import { DashboardPage } from './pages/DashboardPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -11,6 +12,20 @@ import { CashFlowPage } from './pages/CashFlowPage'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '本機資料操作失敗，請重新整理後再試。'
+}
+
+function downloadBackupFile(state: AppState): void {
+  const backup = createBackupData(state)
+  const fileDate = backup.exportedAt.replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
+  const blob = new Blob([serializeBackupData(backup)], { type: 'application/json;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `asset-leverage-cashflow-backup-${fileDate}.json`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 export default function App() {
@@ -159,13 +174,31 @@ export default function App() {
     setState(nextState)
   }, '示範資料已清除。')
 
+  const handleExportBackup = () => {
+    if (!state) return
+    downloadBackupFile(state)
+    setError(null)
+    setNotice('備份 JSON 已下載。')
+  }
+
+  const handleImportBackup = (backup: BackupData, mode: BackupImportMode) => runAction(async () => {
+    if (!state) return
+    const nextState = mode === 'replace' ? backupToAppState(backup) : mergeBackupIntoAppState(state, backup)
+    if (mode === 'replace') {
+      await replaceAppState(nextState)
+    } else {
+      await saveAppState(nextState)
+    }
+    setState(nextState)
+  }, mode === 'replace' ? '備份已覆蓋本機資料。' : '備份已合併到本機資料。')
+
   if (!state) {
     return <div className="loading-screen"><div className="loading-mark"><span /><span /><span /></div><strong>正在開啟你的本機資產資料庫…</strong>{error && <p role="alert">{error}</p>}</div>
   }
 
   const page = summary && activePage === 'dashboard' ? <DashboardPage state={state} summary={summary} onNavigate={setActivePage} />
     : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} />
-        : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} />
+        : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />
         : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} collaterals={state.collaterals} simulations={state.simulations} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} onSaveSimulation={handleSaveSimulation} onDeleteSimulation={handleDeleteSimulation} />
           : <CashFlowPage items={state.cashFlowItems} loans={state.loans} stocks={state.stocks} targets={state.dividendTargets} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} onSaveTarget={handleSaveDividendTarget} onDeleteTarget={handleDeleteDividendTarget} />
 

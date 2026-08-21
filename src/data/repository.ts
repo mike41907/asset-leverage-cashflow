@@ -4,6 +4,7 @@ import {
   getAllFromStore,
   getFromStore,
   putInStore,
+  replaceStores,
   STORE_NAMES,
 } from './database'
 import {
@@ -41,6 +42,20 @@ export async function saveAppState(state: AppState): Promise<void> {
     ...state.dividendTargets.map((item) => putInStore(STORE_NAMES.dividendTargets, item)),
     putInStore(STORE_NAMES.settings, state.settings),
   ])
+}
+
+export async function replaceAppState(state: AppState): Promise<void> {
+  await replaceStores({
+    [STORE_NAMES.stocks]: state.stocks,
+    [STORE_NAMES.cash]: state.cash,
+    [STORE_NAMES.loans]: state.loans,
+    [STORE_NAMES.collaterals]: state.collaterals,
+    [STORE_NAMES.cashFlowItems]: state.cashFlowItems,
+    [STORE_NAMES.simulations]: state.simulations,
+    [STORE_NAMES.dividendTargets]: state.dividendTargets,
+    [STORE_NAMES.settings]: [state.settings],
+    [STORE_NAMES.metadata]: [{ id: DEMO_SEEDED_KEY, value: true } satisfies MetadataRecord],
+  })
 }
 
 async function readState(): Promise<AppState> {
