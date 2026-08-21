@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { deleteDatabase } from './database'
-import type { CashFlowItem, Collateral, DividendTarget, Liability, Loan, RealEstateAsset, Simulation } from '../domain/models'
-import { clearDemoData, deleteCashFlowItem, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, loadAppState, replaceAppState, saveCashFlowItem, saveDividendTarget, saveLiability, saveLoanBundle, saveRealEstate, saveSimulation, saveStock } from './repository'
+import type { CashFlowItem, Collateral, CryptoAsset, DividendTarget, Liability, Loan, RealEstateAsset, Simulation } from '../domain/models'
+import { clearDemoData, deleteCashFlowItem, deleteCrypto, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, loadAppState, replaceAppState, saveCashFlowItem, saveCrypto, saveDividendTarget, saveLiability, saveLoanBundle, saveRealEstate, saveSimulation, saveStock } from './repository'
 
 describe('local repository', () => {
   beforeEach(async () => {
@@ -98,6 +98,33 @@ describe('local repository', () => {
     await deleteCashFlowItem(item.id)
     const deleted = await loadAppState()
     expect(deleted.cashFlowItems.some((existing) => existing.id === item.id)).toBe(false)
+  })
+
+  it('persists and deletes a crypto asset locally', async () => {
+    await loadAppState()
+    const crypto: CryptoAsset = {
+      id: 'crypto-test',
+      kind: 'crypto',
+      symbol: 'BTC',
+      name: 'Bitcoin',
+      platform: '測試錢包',
+      currency: 'USD',
+      exchangeRateToTwd: 32,
+      quantity: 0.25,
+      averageCost: 40_000,
+      currentPrice: 50_000,
+      notes: '只存在本機',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    await saveCrypto(crypto)
+    const saved = await loadAppState()
+    expect(saved.cryptos).toContainEqual(crypto)
+
+    await deleteCrypto(crypto.id)
+    const deleted = await loadAppState()
+    expect(deleted.cryptos.some((existing) => existing.id === crypto.id)).toBe(false)
   })
 
   it('persists and deletes real estate and general liability records locally', async () => {

@@ -1,5 +1,7 @@
 import {
   calculateCollateralSelectionsValueTwd,
+  calculateCryptoMarketValue,
+  calculateCryptoUnrealizedGain,
   calculateDividendTarget,
   calculateMaintenanceRatio,
   calculateMaintenanceStatus,
@@ -17,7 +19,7 @@ import {
   calculateStressTest,
   calculateTotalAssets,
 } from './calculations'
-import type { CashAsset, CashFlowItem, Liability, Loan, RealEstateAsset, StockAsset } from './models'
+import type { CashAsset, CashFlowItem, CryptoAsset, Liability, Loan, RealEstateAsset, StockAsset } from './models'
 
 const stock = (overrides: Partial<StockAsset> = {}): StockAsset => ({
   id: 'stock-1',
@@ -64,6 +66,22 @@ const house: RealEstateAsset = {
   updatedAt: '',
 }
 
+const crypto: CryptoAsset = {
+  id: 'crypto-1',
+  kind: 'crypto',
+  symbol: 'BTC',
+  name: 'Bitcoin',
+  platform: '測試錢包',
+  currency: 'USD',
+  exchangeRateToTwd: 32,
+  quantity: 0.5,
+  averageCost: 40_000,
+  currentPrice: 50_000,
+  notes: '',
+  createdAt: '',
+  updatedAt: '',
+}
+
 describe('portfolio calculations', () => {
   it('converts US stock market value and gain into TWD', () => {
     const usStock = stock({
@@ -77,6 +95,15 @@ describe('portfolio calculations', () => {
 
     expect(calculateStockMarketValue(usStock)).toBe(39_000)
     expect(calculateStockUnrealizedGain(usStock)).toBe(6_500)
+  })
+
+  it('converts crypto quantity and gain into TWD', () => {
+    expect(calculateCryptoMarketValue(crypto)).toBe(800_000)
+    expect(calculateCryptoUnrealizedGain(crypto)).toBe(160_000)
+
+    const summary = calculatePortfolioSummary([], [], [], [], [], 160, 120, [], [], [crypto])
+    expect(summary.cryptoMarketValueTwd).toBe(800_000)
+    expect(summary.totalAssetsTwd).toBe(800_000)
   })
 
   it('keeps borrowed money out of net worth while reflecting reinvested assets', () => {

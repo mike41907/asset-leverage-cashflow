@@ -1,4 +1,4 @@
-import type { CashAsset, CashFlowItem, Collateral, Liability, Loan, RealEstateAsset, StockAsset } from './models'
+import type { CashAsset, CashFlowItem, Collateral, CryptoAsset, Liability, Loan, RealEstateAsset, StockAsset } from './models'
 
 export type MaintenanceStatus = 'safe' | 'warning' | 'danger' | 'unavailable'
 
@@ -19,6 +19,7 @@ export interface CollateralSelection {
 export interface PortfolioSummary {
   stockMarketValueTwd: number
   cashValueTwd: number
+  cryptoMarketValueTwd: number
   realEstateValueTwd: number
   totalAssetsTwd: number
   totalLiabilitiesTwd: number
@@ -178,6 +179,23 @@ export function calculateCashValue(cash: CashAsset): number {
   return finitePositive(cash.amount) * finitePositive(cash.exchangeRateToTwd || 1)
 }
 
+export function calculateCryptoMarketValue(crypto: CryptoAsset): number {
+  return finitePositive(crypto.quantity) * finitePositive(crypto.currentPrice) * finitePositive(crypto.exchangeRateToTwd || 1)
+}
+
+export function calculateCryptoCostBasis(crypto: CryptoAsset): number {
+  return finitePositive(crypto.quantity) * finitePositive(crypto.averageCost) * finitePositive(crypto.exchangeRateToTwd || 1)
+}
+
+export function calculateCryptoUnrealizedGain(crypto: CryptoAsset): number {
+  return calculateCryptoMarketValue(crypto) - calculateCryptoCostBasis(crypto)
+}
+
+export function calculateCryptoUnrealizedGainPercent(crypto: CryptoAsset): number | null {
+  const costBasis = calculateCryptoCostBasis(crypto)
+  return costBasis > 0 ? (calculateCryptoUnrealizedGain(crypto) / costBasis) * 100 : null
+}
+
 export function calculateRealEstateValueTwd(asset: RealEstateAsset): number {
   return finitePositive(asset.currentValueTwd)
 }
@@ -221,8 +239,9 @@ export function calculateTotalAssets(
   cash: readonly CashAsset[],
   additionalAssetValueTwd = 0,
   realEstate: readonly RealEstateAsset[] = [],
+  cryptos: readonly CryptoAsset[] = [],
 ): number {
-  return sum(stocks.map(calculateStockMarketValue)) + sum(cash.map(calculateCashValue)) + sum(realEstate.map(calculateRealEstateValueTwd)) + finitePositive(additionalAssetValueTwd)
+  return sum(stocks.map(calculateStockMarketValue)) + sum(cash.map(calculateCashValue)) + sum(cryptos.map(calculateCryptoMarketValue)) + sum(realEstate.map(calculateRealEstateValueTwd)) + finitePositive(additionalAssetValueTwd)
 }
 
 export function calculateNetWorth(totalAssetsTwd: number, totalLiabilitiesTwd: number): number {
@@ -504,11 +523,13 @@ export function calculatePortfolioSummary(
   marginCallRatioPercent = 120,
   realEstate: readonly RealEstateAsset[] = [],
   liabilities: readonly Liability[] = [],
+  cryptos: readonly CryptoAsset[] = [],
 ): PortfolioSummary {
   const stockMarketValueTwd = sum(stocks.map(calculateStockMarketValue))
   const cashValueTwd = sum(cash.map(calculateCashValue))
+  const cryptoMarketValueTwd = sum(cryptos.map(calculateCryptoMarketValue))
   const realEstateValueTwd = sum(realEstate.map(calculateRealEstateValueTwd))
-  const totalAssetsTwd = calculateTotalAssets(stocks, cash, 0, realEstate)
+  const totalAssetsTwd = calculateTotalAssets(stocks, cash, 0, realEstate, cryptos)
   const totalLiabilitiesTwd = sum(loans.map((loan) => finitePositive(loan.outstandingBalance))) + sum(liabilities.filter((liability) => liability.isActive).map((liability) => finitePositive(liability.outstandingBalance)))
   const netWorthTwd = calculateNetWorth(totalAssetsTwd, totalLiabilitiesTwd)
   const annualEstimatedDividendTwd = sum(stocks.map(calculateAnnualDividendTwd))
@@ -529,6 +550,7 @@ export function calculatePortfolioSummary(
   return {
     stockMarketValueTwd,
     cashValueTwd,
+    cryptoMarketValueTwd,
     realEstateValueTwd,
     totalAssetsTwd,
     totalLiabilitiesTwd,

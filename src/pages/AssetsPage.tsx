@@ -3,6 +3,7 @@ import {
   Banknote,
   Check,
   ChevronDown,
+  Coins,
   Edit3,
   House,
   Info,
@@ -14,8 +15,8 @@ import {
   WalletCards,
   X,
 } from 'lucide-react'
-import type { CashAsset, Currency, Market, RealEstateAsset, RealEstateType, StockAsset, StockDividendPeriod } from '../domain/models'
-import { calculateCashValue, calculateRealEstateValueTwd, calculateStockMarketValue, calculateStockUnrealizedGain, calculateStockUnrealizedGainPercent } from '../domain/calculations'
+import type { CashAsset, Currency, CryptoAsset, Market, RealEstateAsset, RealEstateType, StockAsset, StockDividendPeriod } from '../domain/models'
+import { calculateCashValue, calculateCryptoMarketValue, calculateCryptoUnrealizedGain, calculateCryptoUnrealizedGainPercent, calculateRealEstateValueTwd, calculateStockMarketValue, calculateStockUnrealizedGain, calculateStockUnrealizedGainPercent } from '../domain/calculations'
 import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
 import { EmptyState } from '../components/EmptyState'
@@ -26,6 +27,7 @@ import { fetchStockQuote, fetchUsdTwdExchangeRate, hasChineseName, PUBLIC_QUOTE_
 interface AssetsPageProps {
   stocks: StockAsset[]
   cash: CashAsset[]
+  cryptos: CryptoAsset[]
   realEstate: RealEstateAsset[]
   displayMode: 'exact' | 'compact'
   onSaveStock: (stock: StockAsset) => Promise<void>
@@ -33,13 +35,16 @@ interface AssetsPageProps {
   onDeleteStock: (id: string) => Promise<void>
   onSaveCash: (cash: CashAsset) => Promise<void>
   onDeleteCash: (id: string) => Promise<void>
+  onSaveCrypto: (crypto: CryptoAsset) => Promise<void>
+  onDeleteCrypto: (id: string) => Promise<void>
   onSaveRealEstate: (asset: RealEstateAsset) => Promise<void>
   onDeleteRealEstate: (id: string) => Promise<void>
 }
 
-type AssetTab = 'stocks' | 'cash' | 'realEstate'
+type AssetTab = 'stocks' | 'cash' | 'crypto' | 'realEstate'
 type StockDraft = Omit<StockAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
 type CashDraft = Omit<CashAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
+type CryptoDraft = Omit<CryptoAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
 type RealEstateDraft = Omit<RealEstateAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
 
 const defaultStockDraft: StockDraft = {
@@ -86,6 +91,18 @@ const defaultCashDraft: CashDraft = {
   notes: '',
 }
 
+const defaultCryptoDraft: CryptoDraft = {
+  symbol: '',
+  name: '',
+  platform: '',
+  currency: 'USD',
+  exchangeRateToTwd: 1,
+  quantity: 0,
+  averageCost: 0,
+  currentPrice: 0,
+  notes: '',
+}
+
 const defaultRealEstateDraft: RealEstateDraft = {
   name: '',
   propertyType: 'residential',
@@ -102,6 +119,11 @@ function stockDraftFrom(stock: StockAsset): StockDraft {
 
 function cashDraftFrom(cash: CashAsset): CashDraft {
   const { id: _id, kind: _kind, createdAt: _createdAt, updatedAt: _updatedAt, isDemo: _isDemo, ...draft } = cash
+  return draft
+}
+
+function cryptoDraftFrom(crypto: CryptoAsset): CryptoDraft {
+  const { id: _id, kind: _kind, createdAt: _createdAt, updatedAt: _updatedAt, isDemo: _isDemo, ...draft } = crypto
   return draft
 }
 
@@ -149,6 +171,10 @@ function dividendPeriodLabel(period: StockDividendPeriod | undefined): string {
 
 function dividendCurrency(stock: Pick<StockAsset, 'currency'>): string {
   return stock.currency === 'USD' ? '$' : 'NT$'
+}
+
+function assetCurrency(currency: Currency): string {
+  return currency === 'USD' ? '$' : 'NT$'
 }
 
 function quoteDividendFields(quote: StockQuote, current?: Pick<StockDraft, 'estimatedAnnualDividendPerShare' | 'dividendSource'>): Partial<Pick<StockDraft, 'estimatedAnnualDividendPerShare' | 'estimatedYieldPercent' | 'dividendSource' | 'dividendFetchedAt' | 'dividendPeriod' | 'dividendPeriodStart' | 'dividendPeriodEnd'>> {
@@ -233,18 +259,22 @@ function SelectChevron() {
   return <ChevronDown className="select-chevron" size={16} aria-hidden="true" />
 }
 
-export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock, onSaveStocks, onDeleteStock, onSaveCash, onDeleteCash, onSaveRealEstate, onDeleteRealEstate }: AssetsPageProps) {
+export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onSaveStock, onSaveStocks, onDeleteStock, onSaveCash, onDeleteCash, onSaveCrypto, onDeleteCrypto, onSaveRealEstate, onDeleteRealEstate }: AssetsPageProps) {
   const [activeTab, setActiveTab] = useState<AssetTab>('stocks')
   const [search, setSearch] = useState('')
   const [stockModalOpen, setStockModalOpen] = useState(false)
   const [cashModalOpen, setCashModalOpen] = useState(false)
+  const [cryptoModalOpen, setCryptoModalOpen] = useState(false)
   const [realEstateModalOpen, setRealEstateModalOpen] = useState(false)
   const [editingStock, setEditingStock] = useState<StockAsset | null>(null)
   const [editingCash, setEditingCash] = useState<CashAsset | null>(null)
+  const [editingCrypto, setEditingCrypto] = useState<CryptoAsset | null>(null)
   const [editingRealEstate, setEditingRealEstate] = useState<RealEstateAsset | null>(null)
   const [stockDraft, setStockDraft] = useState<StockDraft>(defaultStockDraft)
   const [cashDraft, setCashDraft] = useState<CashDraft>(defaultCashDraft)
+  const [cryptoDraft, setCryptoDraft] = useState<CryptoDraft>(defaultCryptoDraft)
   const [realEstateDraft, setRealEstateDraft] = useState<RealEstateDraft>(defaultRealEstateDraft)
+  const [cryptoFormNotice, setCryptoFormNotice] = useState<string | null>(null)
   const [quoteState, setQuoteState] = useState<QuoteState>(initialQuoteState)
   const [isRefreshingAll, setIsRefreshingAll] = useState(false)
   const [quoteListNotice, setQuoteListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
@@ -258,6 +288,7 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
 
   const filteredStocks = stocks.filter((stock) => `${stock.symbol} ${stock.name}`.toLowerCase().includes(search.toLowerCase()))
   const filteredCash = cash.filter((item) => `${item.label} ${item.currency}`.toLowerCase().includes(search.toLowerCase()))
+  const filteredCryptos = cryptos.filter((item) => `${item.symbol} ${item.name} ${item.platform}`.toLowerCase().includes(search.toLowerCase()))
   const filteredRealEstate = realEstate.filter((item) => `${item.name} ${realEstateTypeLabel(item.propertyType)}`.toLowerCase().includes(search.toLowerCase()))
 
   const openNewStock = () => {
@@ -390,6 +421,20 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
     setCashModalOpen(true)
   }
 
+  const openNewCrypto = () => {
+    setEditingCrypto(null)
+    setCryptoDraft({ ...defaultCryptoDraft })
+    setCryptoFormNotice(null)
+    setCryptoModalOpen(true)
+  }
+
+  const openEditCrypto = (asset: CryptoAsset) => {
+    setEditingCrypto(asset)
+    setCryptoDraft(cryptoDraftFrom(asset))
+    setCryptoFormNotice(null)
+    setCryptoModalOpen(true)
+  }
+
   const openNewRealEstate = () => {
     setEditingRealEstate(null)
     setRealEstateDraft({ ...defaultRealEstateDraft })
@@ -502,6 +547,48 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
     setCashModalOpen(false)
   }
 
+  const handleCryptoSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (cryptoDraft.quantity <= 0 || cryptoDraft.currentPrice <= 0) {
+      setCryptoFormNotice('請填入大於 0 的持有數量與目前價格。')
+      return
+    }
+
+    let draftToSave = cryptoDraft
+    if (cryptoDraft.currency === 'TWD') {
+      draftToSave = { ...draftToSave, exchangeRateToTwd: 1 }
+    } else {
+      try {
+        const exchangeRate = await fetchUsdTwdExchangeRate()
+        draftToSave = { ...draftToSave, exchangeRateToTwd: exchangeRate.rate }
+      } catch (error) {
+        if (!Number.isFinite(cryptoDraft.exchangeRateToTwd) || cryptoDraft.exchangeRateToTwd <= 1) {
+          setCryptoFormNotice(error instanceof Error ? error.message : '無法取得美元／台幣匯率，請稍後再試。')
+          return
+        }
+        setCryptoFormNotice('目前離線，已保留你輸入的 USD/TWD 匯率。')
+      }
+    }
+
+    const time = new Date().toISOString()
+    await onSaveCrypto({
+      ...draftToSave,
+      id: editingCrypto?.id ?? createId('crypto'),
+      kind: 'crypto',
+      symbol: draftToSave.symbol.trim().toUpperCase(),
+      name: draftToSave.name.trim() || draftToSave.symbol.trim().toUpperCase(),
+      platform: draftToSave.platform.trim(),
+      averageCost: Math.max(0, draftToSave.averageCost),
+      currentPrice: Math.max(0, draftToSave.currentPrice),
+      quantity: Math.max(0, draftToSave.quantity),
+      notes: draftToSave.notes.trim(),
+      createdAt: editingCrypto?.createdAt ?? time,
+      updatedAt: time,
+      isDemo: false,
+    })
+    setCryptoModalOpen(false)
+  }
+
   const handleRealEstateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const time = new Date().toISOString()
@@ -565,6 +652,10 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
     if (window.confirm(`確定要刪除「${item.label}」嗎？`)) await onDeleteCash(item.id)
   }
 
+  const handleDeleteCrypto = async (asset: CryptoAsset) => {
+    if (window.confirm(`確定要刪除「${asset.name || asset.symbol}」嗎？`)) await onDeleteCrypto(asset.id)
+  }
+
   const handleDeleteRealEstate = async (asset: RealEstateAsset) => {
     if (window.confirm(`確定要刪除「${asset.name}」嗎？`)) await onDeleteRealEstate(asset.id)
   }
@@ -606,7 +697,7 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
         <div className="heading-actions asset-heading-actions">
           {activeTab === 'stocks' && <button type="button" className="button button-secondary" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新所有行情'}</button>}
           {activeTab === 'stocks' && <button type="button" className="button button-secondary" onClick={openHoldingsImportPicker}><ScanLine size={16} />從截圖匯入</button>}
-          <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : activeTab === 'cash' ? openNewCash : openNewRealEstate}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : activeTab === 'cash' ? '現金' : '房產'}</button>
+          <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : activeTab === 'cash' ? openNewCash : activeTab === 'crypto' ? openNewCrypto : openNewRealEstate}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : activeTab === 'cash' ? '現金' : activeTab === 'crypto' ? '虛擬貨幣' : '房產'}</button>
         </div>
       </section>
 
@@ -614,9 +705,10 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
         <div className="segmented-control" role="tablist" aria-label="資產類型">
           <button type="button" role="tab" aria-selected={activeTab === 'stocks'} className={activeTab === 'stocks' ? 'is-active' : ''} onClick={() => { setActiveTab('stocks'); setSearch('') }}><BarChartGlyph />股票 <span>{stocks.length}</span></button>
           <button type="button" role="tab" aria-selected={activeTab === 'cash'} className={activeTab === 'cash' ? 'is-active' : ''} onClick={() => { setActiveTab('cash'); setSearch('') }}><Banknote size={16} />現金 <span>{cash.length}</span></button>
+          <button type="button" role="tab" aria-selected={activeTab === 'crypto'} className={activeTab === 'crypto' ? 'is-active' : ''} onClick={() => { setActiveTab('crypto'); setSearch('') }}><Coins size={16} />虛擬貨幣 <span>{cryptos.length}</span></button>
           <button type="button" role="tab" aria-selected={activeTab === 'realEstate'} className={activeTab === 'realEstate' ? 'is-active' : ''} onClick={() => { setActiveTab('realEstate'); setSearch('') }}><House size={16} />房產 <span>{realEstate.length}</span></button>
         </div>
-        <label className="search-field"><Search size={17} /><span className="sr-only">搜尋資產</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={activeTab === 'stocks' ? '搜尋代號或名稱' : activeTab === 'cash' ? '搜尋現金帳戶' : '搜尋房產名稱'} /></label>
+        <label className="search-field"><Search size={17} /><span className="sr-only">搜尋資產</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={activeTab === 'stocks' ? '搜尋代號或名稱' : activeTab === 'cash' ? '搜尋現金帳戶' : activeTab === 'crypto' ? '搜尋代號、名稱或平台' : '搜尋房產名稱'} /></label>
       </section>
 
       {activeTab === 'stocks' ? (
@@ -674,6 +766,36 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
               <button type="button" className="add-asset-dashed" onClick={openNewCash}><Plus size={20} /><span>新增一筆現金</span></button>
             </div>
           )}
+        </section>
+      ) : activeTab === 'crypto' ? (
+        <section className="card asset-table-card">
+          <div className="section-heading-row asset-section-heading">
+            <div><div className="section-kicker">虛擬貨幣 / Crypto</div><h2>虛擬貨幣清單</h2></div>
+            <div className="asset-section-summary"><span>折合台幣</span><strong>{formatTwd(cryptos.reduce((total, crypto) => total + calculateCryptoMarketValue(crypto), 0), displayMode)}</strong><small>價格手動輸入＋美元匯率自動抓取</small></div>
+          </div>
+          {filteredCryptos.length === 0 ? (
+            <EmptyState icon={Coins} title={search ? '找不到符合的虛擬貨幣' : '還沒有虛擬貨幣資產'} description={search ? '換一個代號、名稱或平台試試。' : '加入 BTC、ETH 或其他代幣，資產總額會同步更新。'} actionLabel={search ? undefined : '新增虛擬貨幣'} onAction={search ? undefined : openNewCrypto} />
+          ) : (
+            <div className="cash-grid">
+              {filteredCryptos.map((asset) => {
+                const gain = calculateCryptoUnrealizedGain(asset)
+                const gainPercent = calculateCryptoUnrealizedGainPercent(asset)
+                const displayName = asset.name || asset.symbol
+                const priceDecimals = asset.currentPrice < 1 ? 8 : 2
+                return <article className="cash-asset-card crypto-asset-card" key={asset.id}>
+                  <div className="cash-card-top"><span className="cash-avatar crypto-avatar"><Coins size={18} /></span><div><strong>{displayName}</strong><small>{asset.symbol}{asset.platform ? ` · ${asset.platform}` : ' · 未填平台／錢包'}</small></div>{asset.isDemo && <span className="demo-badge">Demo</span>}</div>
+                  <div className="cash-card-amount">{assetCurrency(asset.currency)}{formatNumber(asset.currentPrice, priceDecimals)}</div>
+                  <div className="cash-card-meta"><span>持有數量</span><strong>{formatNumber(asset.quantity, 8)}</strong></div>
+                  <div className="cash-card-meta"><span>折合台幣</span><strong>{formatTwd(calculateCryptoMarketValue(asset), displayMode)}</strong></div>
+                  <div className="cash-card-meta"><span>未實現損益</span><strong className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)} <small>{formatPercent(gainPercent)}</small></strong></div>
+                  <div className="cash-card-meta"><span>換算匯率</span><strong>{asset.currency === 'USD' ? `${formatNumber(asset.exchangeRateToTwd, 4)} TWD/USD` : '1 TWD/TWD'}</strong></div>
+                  <div className="cash-card-actions"><button type="button" className="button button-ghost" onClick={() => openEditCrypto(asset)}><Edit3 size={15} />編輯</button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${displayName}`} onClick={() => void handleDeleteCrypto(asset)}><Trash2 size={15} /></button></div>
+                </article>
+              })}
+              <button type="button" className="add-asset-dashed" onClick={openNewCrypto}><Plus size={20} /><span>新增一筆虛擬貨幣</span></button>
+            </div>
+          )}
+          <div className="table-note"><Info size={15} /> 虛擬貨幣市值 = 持有數量 × 目前價格 × 匯率；價格目前由你輸入，USD/TWD 匯率會自動更新，且不納入股票質押擔保品。</div>
         </section>
       ) : (
         <section className="card asset-table-card">
@@ -733,6 +855,24 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
           </div>
           <FormField label="備註" wide><textarea value={cashDraft.notes} onChange={(event) => setCashDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：銀行或帳戶用途" rows={3} /></FormField>
           <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setCashModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存現金</button></div>
+        </form>
+      </Modal>}
+
+      {cryptoModalOpen && <Modal title={editingCrypto ? '編輯虛擬貨幣資產' : '新增虛擬貨幣資產'} description="價格目前手動輸入；美元資產儲存時會自動取得 USD/TWD 匯率，資料只存在這台裝置。" onClose={() => setCryptoModalOpen(false)}>
+        <form className="asset-form" onSubmit={(event) => void handleCryptoSubmit(event)}>
+          <div className="form-grid form-grid-two">
+            <FormField label="虛擬貨幣代號"><input required value={cryptoDraft.symbol} onChange={(event) => setCryptoDraft((current) => ({ ...current, symbol: event.target.value.toUpperCase() }))} placeholder="例如 BTC、ETH、SOL" /></FormField>
+            <FormField label="名稱" hint="可留空自動使用代號"><input value={cryptoDraft.name} onChange={(event) => setCryptoDraft((current) => ({ ...current, name: event.target.value }))} placeholder="例如 Bitcoin" /></FormField>
+            <FormField label="交易所／錢包" wide><input value={cryptoDraft.platform} onChange={(event) => setCryptoDraft((current) => ({ ...current, platform: event.target.value }))} placeholder="例如 Binance、MaiCoin、冷錢包" /></FormField>
+            <FormField label="計價幣別"><div className="select-wrap"><select value={cryptoDraft.currency} onChange={(event) => setCryptoDraft((current) => ({ ...current, currency: event.target.value as Currency, exchangeRateToTwd: event.target.value === 'TWD' ? 1 : current.exchangeRateToTwd }))}><option value="USD">USD / 美元</option><option value="TWD">TWD / 新台幣</option></select><SelectChevron /></div></FormField>
+            <FormField label="持有數量"><input required min="0" step="any" type="number" value={cryptoDraft.quantity || ''} onChange={(event) => setCryptoDraft((current) => ({ ...current, quantity: Number(event.target.value) }))} placeholder="例如 0.25" /></FormField>
+            <FormField label="平均成本" hint={`/${cryptoDraft.currency}`}><input min="0" step="any" type="number" value={cryptoDraft.averageCost || ''} onChange={(event) => setCryptoDraft((current) => ({ ...current, averageCost: Number(event.target.value) }))} placeholder="例如 42000" /></FormField>
+            <FormField label="目前價格" hint={`/${cryptoDraft.currency}`}><input required min="0" step="any" type="number" value={cryptoDraft.currentPrice || ''} onChange={(event) => setCryptoDraft((current) => ({ ...current, currentPrice: Number(event.target.value) }))} placeholder="手動輸入目前價格" /></FormField>
+            <FormField label="匯率" hint={cryptoDraft.currency === 'USD' ? 'USD/TWD 自動抓取；離線可保留手動值' : '換算 TWD'}><input required min="0.0001" step="any" type="number" disabled={cryptoDraft.currency === 'TWD'} value={cryptoDraft.exchangeRateToTwd} onChange={(event) => setCryptoDraft((current) => ({ ...current, exchangeRateToTwd: Number(event.target.value) }))} /></FormField>
+          </div>
+          {cryptoFormNotice && <div className="quote-status quote-status-error" role="alert"><Info size={14} /><span>{cryptoFormNotice}</span></div>}
+          <FormField label="備註" wide><textarea value={cryptoDraft.notes} onChange={(event) => setCryptoDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：持有地址、估值日期或資料來源" rows={3} /></FormField>
+          <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setCryptoModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存虛擬貨幣</button></div>
         </form>
       </Modal>}
 

@@ -1,9 +1,10 @@
 export const DATABASE_NAME = 'asset-leverage-cashflow-app'
-export const DATABASE_VERSION = 2
+export const DATABASE_VERSION = 3
 
 export const STORE_NAMES = {
   stocks: 'stocks',
   cash: 'cash',
+  cryptos: 'cryptos',
   realEstate: 'realEstate',
   loans: 'loans',
   liabilities: 'liabilities',

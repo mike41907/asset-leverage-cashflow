@@ -63,7 +63,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
   }
 
   const backupRecordCount = pendingBackup
-    ? pendingBackup.stocks.length + pendingBackup.cash.length + pendingBackup.loans.length + pendingBackup.collaterals.length + pendingBackup.cashFlowItems.length + pendingBackup.simulations.length + pendingBackup.dividendTargets.length
+    ? pendingBackup.stocks.length + pendingBackup.cash.length + pendingBackup.cryptos.length + pendingBackup.realEstate.length + pendingBackup.loans.length + pendingBackup.liabilities.length + pendingBackup.collaterals.length + pendingBackup.cashFlowItems.length + pendingBackup.simulations.length + pendingBackup.dividendTargets.length
     : 0
 
   return (
@@ -72,7 +72,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />系統設定</div>
           <h1>讓工具，<span>跟你的習慣一起工作。</span></h1>
-          <p>V1.2 已加入房產、一般負債與家庭固定支出；這裡集中管理顯示、風控與資料搬移。</p>
+          <p>V1.6 已加入虛擬貨幣資產；這裡集中管理顯示、風控與資料搬移。</p>
         </div>
       </section>
 
@@ -102,7 +102,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
       <section className="settings-section">
         <div className="settings-section-heading"><div className="settings-section-icon"><Database size={18} /></div><div><h2>本機資料</h2><p>這個版本不連接後端、不登入、不蒐集分析資料。</p></div></div>
         <div className="settings-card card">
-           <div className="privacy-callout"><div className="privacy-callout-icon"><ShieldCheck size={19} /></div><div><strong>資產資料留在這台裝置</strong><p>股票、現金與設定保存於瀏覽器 IndexedDB；只有查詢行情時會送出股票代號，不會同步資產內容或備份資料。</p></div></div>
+           <div className="privacy-callout"><div className="privacy-callout-icon"><ShieldCheck size={19} /></div><div><strong>資產資料留在這台裝置</strong><p>股票、現金、虛擬貨幣與設定保存於瀏覽器 IndexedDB；只有查詢行情時會送出股票代號，不會同步資產內容或備份資料。</p></div></div>
           <div className="data-action-row"><div><strong>示範資料</strong><span>{hasDemoData ? '目前仍有可刪除的 Demo 股票或現金。' : '示範資料已清除，之後新增的資料不會被移除。'}</span></div><button type="button" className="button button-danger-outline" disabled={!hasDemoData || isClearing} onClick={() => void handleClearDemo}><RotateCcw size={15} />{isClearing ? '清除中…' : '清除示範資料'}</button></div>
           <div className="data-action-row backup-action-row"><div><strong>備份與匯入</strong><span>JSON 只在你的裝置產生與讀取，不會上傳資產資料。</span></div><div className="future-actions"><button type="button" className="button button-ghost" onClick={onExportBackup}><Download size={15} />匯出 JSON</button><button type="button" className="button button-ghost" onClick={() => backupInputRef.current?.click()}><Upload size={15} />匯入 JSON</button></div><input ref={backupInputRef} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => void handleBackupFile(event)} /></div>
           {backupError && <div className="backup-error" role="alert"><strong>備份檔無法匯入</strong><span>{backupError}</span></div>}
@@ -110,7 +110,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         </div>
       </section>
 
-       <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V1.5.0</span></footer>
+       <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V1.6.0</span></footer>
     </div>
   )
 }

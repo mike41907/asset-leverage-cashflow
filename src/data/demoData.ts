@@ -62,6 +62,7 @@ export function createDemoState(): AppState {
   return {
     stocks,
     cash,
+    cryptos: [],
     realEstate: [],
     loans: [],
     liabilities: [],

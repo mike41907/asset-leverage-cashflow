@@ -1,10 +1,10 @@
-export const CURRENT_SCHEMA_VERSION = 2 as const
+export const CURRENT_SCHEMA_VERSION = 3 as const
 
 export type Currency = 'TWD' | 'USD'
 export type Market = 'TW' | 'US' | 'OTHER'
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type NumberDisplayMode = 'exact' | 'compact'
-export type AssetKind = 'stock' | 'cash' | 'real-estate' | 'other'
+export type AssetKind = 'stock' | 'cash' | 'crypto' | 'real-estate' | 'other'
 export type CashFlowType = 'income' | 'expense'
 export type RepaymentMethod = 'interest-only' | 'equal-principal' | 'amortized'
 export type DividendIncomeMode = 'gross' | 'net'
@@ -54,6 +54,19 @@ export interface CashAsset extends Asset {
   currency: Currency
   amount: number
   exchangeRateToTwd: number
+  notes: string
+}
+
+export interface CryptoAsset extends Asset {
+  kind: 'crypto'
+  symbol: string
+  name: string
+  platform: string
+  currency: Currency
+  exchangeRateToTwd: number
+  quantity: number
+  averageCost: number
+  currentPrice: number
   notes: string
 }
 
@@ -192,6 +205,7 @@ export interface BackupData {
   exportedAt: string
   stocks: StockAsset[]
   cash: CashAsset[]
+  cryptos: CryptoAsset[]
   realEstate: RealEstateAsset[]
   loans: Loan[]
   liabilities: Liability[]
@@ -205,6 +219,7 @@ export interface BackupData {
 export interface AppState {
   stocks: StockAsset[]
   cash: CashAsset[]
+  cryptos: CryptoAsset[]
   realEstate: RealEstateAsset[]
   loans: Loan[]
   liabilities: Liability[]

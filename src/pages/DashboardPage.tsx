@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CircleAlert,
   CircleDollarSign,
+  Coins,
   Landmark,
   Plus,
   ShieldCheck,
@@ -29,11 +30,12 @@ interface DashboardPageProps {
 
 export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps) {
   const displayMode = state.settings.numberDisplayMode
-  const hasAssets = state.stocks.length > 0 || state.cash.length > 0 || state.realEstate.length > 0
+  const hasAssets = state.stocks.length > 0 || state.cash.length > 0 || state.cryptos.length > 0 || state.realEstate.length > 0
   const hasLoans = state.loans.length > 0
   const totalAssets = summary.totalAssetsTwd || 1
   const stockShare = (summary.stockMarketValueTwd / totalAssets) * 100
   const cashShare = (summary.cashValueTwd / totalAssets) * 100
+  const cryptoShare = (summary.cryptoMarketValueTwd / totalAssets) * 100
   const realEstateShare = (summary.realEstateValueTwd / totalAssets) * 100
   const topStocks = [...state.stocks]
     .sort((left, right) => calculateStockMarketValue(right) - calculateStockMarketValue(left))
@@ -47,7 +49,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.5.0</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.6.0</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -64,7 +66,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
           <EmptyState
             icon={WalletCards}
             title="還沒有資產資料"
-            description="新增第一筆股票或現金，首頁會即時建立你的資產負債表。"
+            description="新增第一筆股票、現金或虛擬貨幣，首頁會即時建立你的資產負債表。"
             actionLabel="前往資產管理"
             onAction={() => onNavigate('assets')}
           />
@@ -120,6 +122,13 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                 tone="violet"
               />
               <MetricCard
+                label="虛擬貨幣"
+                value={formatTwd(summary.cryptoMarketValueTwd, displayMode)}
+                description={`${state.cryptos.length} 筆資產`}
+                icon={Coins}
+                tone="amber"
+              />
+              <MetricCard
                 label="每月淨現金流"
                 value={formatCurrencyWithSign(summary.monthlyCashFlowTwd, displayMode)}
                 description="收入 − 支出與借款成本"
@@ -139,7 +148,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                 <span className="section-caption">TWD</span>
               </div>
               <div className="mix-visual">
-                <div className="donut-chart" style={{ '--stock-share': `${Math.min(100, stockShare)}%`, '--cash-share': `${Math.min(100, cashShare)}%` } as React.CSSProperties}>
+                <div className="donut-chart" style={{ '--stock-share': `${Math.min(100, stockShare)}%`, '--cash-share': `${Math.min(100, cashShare)}%`, '--real-estate-share': `${Math.min(100, realEstateShare)}%`, '--crypto-share': `${Math.min(100, cryptoShare)}%` } as React.CSSProperties}>
                   <div className="donut-center">
                     <strong>{Math.round(stockShare)}%</strong>
                     <span>股票</span>
@@ -161,12 +170,18 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                     <div><strong>房產</strong><span>{formatTwd(summary.realEstateValueTwd, displayMode)}</span></div>
                     <em>{formatPercent(realEstateShare, 0)}</em>
                   </div>
+                  <div className="mix-legend-item">
+                    <span className="legend-dot legend-dot-crypto" />
+                    <div><strong>虛擬貨幣</strong><span>{formatTwd(summary.cryptoMarketValueTwd, displayMode)}</span></div>
+                    <em>{formatPercent(cryptoShare, 0)}</em>
+                  </div>
                 </div>
               </div>
-              <div className="mix-bar" aria-label="股票與現金配置比例">
+              <div className="mix-bar" aria-label="股票、現金、房產與虛擬貨幣配置比例">
                 <span className="mix-bar-stock" style={{ width: `${Math.min(100, stockShare)}%` }} />
                 <span className="mix-bar-cash" style={{ width: `${Math.min(100, cashShare)}%` }} />
                 <span className="mix-bar-real-estate" style={{ width: `${Math.min(100, realEstateShare)}%` }} />
+                <span className="mix-bar-crypto" style={{ width: `${Math.min(100, cryptoShare)}%` }} />
               </div>
               <p className="card-footnote">{hasLoans ? `擔保品市值 ${formatTwd(summary.collateralValueTwd, displayMode)}；維持率會隨你輸入的現價更新。` : state.liabilities.length > 0 ? `一般負債 ${formatTwd(summary.totalLiabilitiesTwd, displayMode)}；房貸與固定付款會計入月現金流。` : '目前尚未建立借款或一般負債；可到質押模擬管理房貸與其他固定還款。'}</p>
             </article>
@@ -222,14 +237,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.5.0 完成項目</div>
-              <h2>美股自動換算台幣，資產總額不再失真。</h2>
-              <p>美股會同步取得 USD/TWD 匯率，市值、未實現損益、配息與質押擔保品都會用台幣正確計算。</p>
+              <div className="section-kicker">V1.6.0 完成項目</div>
+              <h2>股票、房產與虛擬貨幣，現在都在同一張資產表。</h2>
+              <p>虛擬貨幣會依數量、成本與目前價格計算未實現損益，美元計價資產再以 USD/TWD 匯率折合台幣。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>新增與編輯美股自動抓取匯率</div>
-                <div><span className="check-icon">✓</span>更新所有行情共用同一組 USD/TWD 匯率</div>
-                <div><span className="check-icon">✓</span>自動修復原本匯率為 1 的既有美股</div>
-                <div><span className="check-icon">✓</span>持倉卡片明確顯示換算匯率</div>
+                <div><span className="check-icon">✓</span>新增 BTC、ETH 或其他虛擬貨幣資產</div>
+                <div><span className="check-icon">✓</span>記錄持有數量、平均成本與目前價格</div>
+                <div><span className="check-icon">✓</span>自動計算折合台幣與未實現損益</div>
+                <div><span className="check-icon">✓</span>備份、匯入與本機資料庫同步支援</div>
               </div>
               <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
                 檢視本機與顯示設定

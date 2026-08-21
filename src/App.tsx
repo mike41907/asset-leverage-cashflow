@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AppShell } from './components/AppShell'
 import { calculatePortfolioSummary } from './domain/calculations'
-import type { AppState, AppSettings, BackupData, CashAsset, CashFlowItem, Collateral, DividendTarget, Liability, Loan, PageKey, RealEstateAsset, Simulation, StockAsset } from './domain/models'
+import type { AppState, AppSettings, BackupData, CashAsset, CashFlowItem, Collateral, CryptoAsset, DividendTarget, Liability, Loan, PageKey, RealEstateAsset, Simulation, StockAsset } from './domain/models'
 import { backupToAppState, createBackupData, mergeBackupIntoAppState, serializeBackupData, type BackupImportMode } from './data/backup'
-import { clearDemoData, deleteCash, deleteCashFlowItem, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, deleteStock, loadAppState, replaceAppState, saveAppState, saveCash, saveCashFlowItem, saveDividendTarget, saveLiability, saveLoanBundle, saveRealEstate, saveSettings, saveSimulation, saveStock } from './data/repository'
+import { clearDemoData, deleteCash, deleteCashFlowItem, deleteCrypto, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, deleteStock, loadAppState, replaceAppState, saveAppState, saveCash, saveCashFlowItem, saveCrypto, saveDividendTarget, saveLiability, saveLoanBundle, saveRealEstate, saveSettings, saveSimulation, saveStock } from './data/repository'
 import { DashboardPage } from './pages/DashboardPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -43,8 +43,9 @@ export default function App() {
   useEffect(() => {
     if (!state) return
     const stocksNeedingExchangeRate = state.stocks.filter((stock) => stock.market === 'US' && (!Number.isFinite(stock.exchangeRateToTwd) || stock.exchangeRateToTwd <= 1))
-    if (stocksNeedingExchangeRate.length === 0) return
-    const syncKey = stocksNeedingExchangeRate.map((stock) => `${stock.id}:${stock.updatedAt}`).join('|')
+    const cryptosNeedingExchangeRate = state.cryptos.filter((crypto) => crypto.currency === 'USD' && (!Number.isFinite(crypto.exchangeRateToTwd) || crypto.exchangeRateToTwd <= 1))
+    if (stocksNeedingExchangeRate.length === 0 && cryptosNeedingExchangeRate.length === 0) return
+    const syncKey = [...stocksNeedingExchangeRate, ...cryptosNeedingExchangeRate].map((asset) => `${asset.id}:${asset.updatedAt}`).join('|')
     if (exchangeRateSyncKeyRef.current === syncKey) return
     let cancelled = false
 
@@ -53,10 +54,19 @@ export default function App() {
       exchangeRateSyncKeyRef.current = syncKey
       const updatedAt = new Date().toISOString()
       const updatedStocks = stocksNeedingExchangeRate.map((stock) => ({ ...stock, exchangeRateToTwd: exchangeRate.rate, updatedAt }))
-      await Promise.all(updatedStocks.map((stock) => saveStock(stock)))
+      const updatedCryptos = cryptosNeedingExchangeRate.map((crypto) => ({ ...crypto, exchangeRateToTwd: exchangeRate.rate, updatedAt }))
+      await Promise.all([
+        ...updatedStocks.map((stock) => saveStock(stock)),
+        ...updatedCryptos.map((crypto) => saveCrypto(crypto)),
+      ])
       if (cancelled) return
       const updatedById = new Map(updatedStocks.map((stock) => [stock.id, stock]))
-      setState((current) => current ? { ...current, stocks: current.stocks.map((stock) => updatedById.get(stock.id) ?? stock) } : current)
+      const updatedCryptoById = new Map(updatedCryptos.map((crypto) => [crypto.id, crypto]))
+      setState((current) => current ? {
+        ...current,
+        stocks: current.stocks.map((stock) => updatedById.get(stock.id) ?? stock),
+        cryptos: current.cryptos.map((crypto) => updatedCryptoById.get(crypto.id) ?? crypto),
+      } : current)
     }).catch(() => {
       // 若目前離線，保留本機資料；下次重新開啟或按下「更新所有行情」時再重試。
     })
@@ -92,6 +102,7 @@ export default function App() {
     state.settings.maintenanceMarginCallRatioPercent,
     state.realEstate,
     state.liabilities,
+    state.cryptos,
   ) : null, [state])
 
   const runAction = async (action: () => Promise<void>, successMessage: string) => {
@@ -131,6 +142,16 @@ export default function App() {
     await deleteCash(id)
     setState((current) => current ? { ...current, cash: current.cash.filter((item) => item.id !== id) } : current)
   }, '現金資產已刪除。')
+
+  const handleSaveCrypto = (crypto: CryptoAsset) => runAction(async () => {
+    await saveCrypto(crypto)
+    setState((current) => current ? { ...current, cryptos: current.cryptos.some((item) => item.id === crypto.id) ? current.cryptos.map((item) => item.id === crypto.id ? crypto : item) : [...current.cryptos, crypto] } : current)
+  }, '虛擬貨幣資產已儲存。')
+
+  const handleDeleteCrypto = (id: string) => runAction(async () => {
+    await deleteCrypto(id)
+    setState((current) => current ? { ...current, cryptos: current.cryptos.filter((item) => item.id !== id) } : current)
+  }, '虛擬貨幣資產已刪除。')
 
   const handleSaveRealEstate = (asset: RealEstateAsset) => runAction(async () => {
     await saveRealEstate(asset)
@@ -255,10 +276,10 @@ export default function App() {
   }
 
   const page = summary && activePage === 'dashboard' ? <DashboardPage state={state} summary={summary} onNavigate={setActivePage} />
-    : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} realEstate={state.realEstate} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onSaveStocks={handleSaveStocks} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} onSaveRealEstate={handleSaveRealEstate} onDeleteRealEstate={handleDeleteRealEstate} />
-        : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo) || state.realEstate.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />
-        : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} liabilities={state.liabilities} realEstate={state.realEstate} collaterals={state.collaterals} simulations={state.simulations} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent, state.realEstate, state.liabilities)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} onSaveLiability={handleSaveLiability} onDeleteLiability={handleDeleteLiability} onSaveSimulation={handleSaveSimulation} onDeleteSimulation={handleDeleteSimulation} />
-          : <CashFlowPage items={state.cashFlowItems} loans={state.loans} liabilities={state.liabilities} stocks={state.stocks} targets={state.dividendTargets} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent, state.realEstate, state.liabilities)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} onSaveTarget={handleSaveDividendTarget} onDeleteTarget={handleDeleteDividendTarget} />
+    : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} cryptos={state.cryptos} realEstate={state.realEstate} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onSaveStocks={handleSaveStocks} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} onSaveCrypto={handleSaveCrypto} onDeleteCrypto={handleDeleteCrypto} onSaveRealEstate={handleSaveRealEstate} onDeleteRealEstate={handleDeleteRealEstate} />
+        : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo) || state.cryptos.some((item) => item.isDemo) || state.realEstate.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />
+        : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} liabilities={state.liabilities} realEstate={state.realEstate} collaterals={state.collaterals} simulations={state.simulations} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent, state.realEstate, state.liabilities, state.cryptos)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} onSaveLiability={handleSaveLiability} onDeleteLiability={handleDeleteLiability} onSaveSimulation={handleSaveSimulation} onDeleteSimulation={handleDeleteSimulation} />
+          : <CashFlowPage items={state.cashFlowItems} loans={state.loans} liabilities={state.liabilities} stocks={state.stocks} targets={state.dividendTargets} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent, state.realEstate, state.liabilities, state.cryptos)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} onSaveTarget={handleSaveDividendTarget} onDeleteTarget={handleDeleteDividendTarget} />
 
   return <AppShell activePage={activePage} onNavigate={(nextPage) => { setActivePage(nextPage); setError(null) }}><div className="page-content-wrap">{page}</div>{error && <div className="toast toast-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="關閉錯誤訊息">×</button></div>}{notice && <div className="toast toast-success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="關閉成功訊息">×</button></div>}</AppShell>
 }
