@@ -79,6 +79,14 @@ export default function App() {
     setState((current) => current ? { ...current, stocks: current.stocks.some((item) => item.id === stock.id) ? current.stocks.map((item) => item.id === stock.id ? stock : item) : [...current.stocks, stock] } : current)
   }, '股票資產已儲存。')
 
+  const handleSaveStocks = (stocks: StockAsset[]) => runAction(async () => {
+    await Promise.all(stocks.map((stock) => saveStock(stock)))
+    setState((current) => current ? {
+      ...current,
+      stocks: current.stocks.map((existing) => stocks.find((stock) => stock.id === existing.id) ?? existing),
+    } : current)
+  }, '股票行情已更新。')
+
   const handleDeleteStock = (id: string) => runAction(async () => {
     await deleteStock(id)
     setState((current) => current ? { ...current, stocks: current.stocks.filter((item) => item.id !== id) } : current)
@@ -197,7 +205,7 @@ export default function App() {
   }
 
   const page = summary && activePage === 'dashboard' ? <DashboardPage state={state} summary={summary} onNavigate={setActivePage} />
-    : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} />
+    : activePage === 'assets' ? <AssetsPage stocks={state.stocks} cash={state.cash} displayMode={state.settings.numberDisplayMode} onSaveStock={handleSaveStock} onSaveStocks={handleSaveStocks} onDeleteStock={handleDeleteStock} onSaveCash={handleSaveCash} onDeleteCash={handleDeleteCash} />
         : activePage === 'settings' ? <SettingsPage settings={state.settings} hasDemoData={state.stocks.some((item) => item.isDemo) || state.cash.some((item) => item.isDemo)} onUpdateSettings={handleUpdateSettings} onClearDemoData={handleClearDemoData} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />
         : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} collaterals={state.collaterals} simulations={state.simulations} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} onSaveSimulation={handleSaveSimulation} onDeleteSimulation={handleDeleteSimulation} />
           : <CashFlowPage items={state.cashFlowItems} loans={state.loans} stocks={state.stocks} targets={state.dividendTargets} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} onSaveTarget={handleSaveDividendTarget} onDeleteTarget={handleDeleteDividendTarget} />

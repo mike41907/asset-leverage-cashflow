@@ -24,6 +24,7 @@ interface AssetsPageProps {
   cash: CashAsset[]
   displayMode: 'exact' | 'compact'
   onSaveStock: (stock: StockAsset) => Promise<void>
+  onSaveStocks: (stocks: StockAsset[]) => Promise<void>
   onDeleteStock: (id: string) => Promise<void>
   onSaveCash: (cash: CashAsset) => Promise<void>
   onDeleteCash: (id: string) => Promise<void>
@@ -59,7 +60,7 @@ interface QuoteState {
 
 const initialQuoteState: QuoteState = {
   status: 'idle',
-  message: '輸入代號後離開欄位，會自動查詢公開行情；也可以手動更新。',
+  message: '輸入代號後離開欄位，會自動查詢公開行情；批次更新請使用頁面上方按鈕。',
   quote: null,
 }
 
@@ -124,7 +125,7 @@ function SelectChevron() {
   return <ChevronDown className="select-chevron" size={16} aria-hidden="true" />
 }
 
-export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onDeleteStock, onSaveCash, onDeleteCash }: AssetsPageProps) {
+export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onSaveStocks, onDeleteStock, onSaveCash, onDeleteCash }: AssetsPageProps) {
   const [activeTab, setActiveTab] = useState<AssetTab>('stocks')
   const [search, setSearch] = useState('')
   const [stockModalOpen, setStockModalOpen] = useState(false)
@@ -134,7 +135,7 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onDeleteSto
   const [stockDraft, setStockDraft] = useState<StockDraft>(defaultStockDraft)
   const [cashDraft, setCashDraft] = useState<CashDraft>(defaultCashDraft)
   const [quoteState, setQuoteState] = useState<QuoteState>(initialQuoteState)
-  const [refreshingStockId, setRefreshingStockId] = useState<string | null>(null)
+  const [isRefreshingAll, setIsRefreshingAll] = useState(false)
   const [quoteListNotice, setQuoteListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
   const quoteRequestId = useRef(0)
 
@@ -153,7 +154,7 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onDeleteSto
     setStockDraft(stockDraftFrom(stock))
     setQuoteState({
       status: 'idle',
-      message: '可按「更新行情」重新抓取；原有價格會保留到你確認更新為止。',
+      message: '原有價格會保留；需要更新時請使用頁面上方的「更新所有行情」。',
       quote: null,
     })
     setStockModalOpen(true)
@@ -175,7 +176,7 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onDeleteSto
     const requestId = ++quoteRequestId.current
     const requestedSymbol = stockDraft.symbol.trim()
     if (!requestedSymbol) {
-      setQuoteState({ status: 'error', message: '請先輸入股票代號，再更新行情。', quote: null })
+      setQuoteState({ status: 'error', message: '請先輸入股票代號，再查詢行情。', quote: null })
       return null
     }
     if (stockDraft.market === 'OTHER') {
@@ -257,26 +258,42 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onDeleteSto
     setCashModalOpen(false)
   }
 
-  const handleRefreshSavedStock = async (stock: StockAsset) => {
-    setRefreshingStockId(stock.id)
+  const handleRefreshAllStocks = async () => {
+    const refreshableStocks = stocks.filter((stock) => stock.market !== 'OTHER')
+    if (refreshableStocks.length === 0) {
+      setQuoteListNotice({ kind: 'error', message: '目前沒有可自動更新的台股或美股；其他市場請手動輸入價格。' })
+      return
+    }
+
+    setIsRefreshingAll(true)
     setQuoteListNotice(null)
     try {
-      const quote = await fetchStockQuote(stock.symbol, stock.market)
-      await onSaveStock({
-        ...stock,
-        currentPrice: quote.price,
-        currentPriceSource: 'yahoo-public',
-        currentPriceFetchedAt: quote.fetchedAt,
-        currentPriceMarketAt: quote.marketAt ?? undefined,
-        currency: quote.currency,
-        exchangeRateToTwd: quote.currency === 'TWD' ? 1 : stock.exchangeRateToTwd,
-        updatedAt: new Date().toISOString(),
-      })
-      setQuoteListNotice({ kind: 'success', message: `${stock.symbol} 已更新為 ${quote.currency === 'USD' ? '$' : 'NT$'}${formatNumber(quote.price, 2)}。` })
+      const results = await Promise.allSettled(refreshableStocks.map(async (stock) => {
+        const quote = await fetchStockQuote(stock.symbol, stock.market)
+        return {
+          ...stock,
+          currentPrice: quote.price,
+          currentPriceSource: 'yahoo-public' as const,
+          currentPriceFetchedAt: quote.fetchedAt,
+          currentPriceMarketAt: quote.marketAt ?? undefined,
+          currency: quote.currency,
+          exchangeRateToTwd: quote.currency === 'TWD' ? 1 : stock.exchangeRateToTwd,
+          updatedAt: new Date().toISOString(),
+        }
+      }))
+      const updatedStocks = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+      const failedStocks = results.flatMap((result, index) => result.status === 'rejected' ? [{ symbol: refreshableStocks[index].symbol, error: getQuoteErrorMessage(result.reason) }] : [])
+      if (updatedStocks.length > 0) await onSaveStocks(updatedStocks)
+
+      const skippedOtherMarket = stocks.length - refreshableStocks.length
+      const summary = `已更新 ${updatedStocks.length}/${refreshableStocks.length} 筆行情。`
+      const failures = failedStocks.length > 0 ? `失敗：${failedStocks.map((item) => `${item.symbol}（${item.error}）`).join('、')}` : ''
+      const skipped = skippedOtherMarket > 0 ? `另有 ${skippedOtherMarket} 筆其他市場未更新。` : ''
+      setQuoteListNotice({ kind: failedStocks.length > 0 ? 'error' : 'success', message: [summary, failures, skipped].filter(Boolean).join(' ') })
     } catch (error) {
-      setQuoteListNotice({ kind: 'error', message: `${stock.symbol}：${getQuoteErrorMessage(error)}` })
+      setQuoteListNotice({ kind: 'error', message: getQuoteErrorMessage(error) })
     } finally {
-      setRefreshingStockId(null)
+      setIsRefreshingAll(false)
     }
   }
 
@@ -297,6 +314,7 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onDeleteSto
           <p>新增股票時會先帶入公開行情；成本、匯率與配息仍由你控制，查不到時也能手動輸入。</p>
         </div>
         <div className="heading-actions">
+          {activeTab === 'stocks' && <button type="button" className="button button-secondary" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新所有行情'}</button>}
           <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : openNewCash}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : '現金'}</button>
         </div>
       </section>
@@ -333,7 +351,7 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onDeleteSto
                       <td data-label="市值"><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong></td>
                       <td data-label="未實現損益"><span className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)}</span><small className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatPercent(gainPercent)}</small></td>
                       <td data-label="質押擔保"><span className={`collateral-tag ${stock.asCollateral ? 'is-on' : ''}`}>{stock.asCollateral ? <><Check size={13} />是</> : '否'}</span></td>
-                      <td className="row-actions"><button type="button" className="icon-button small" aria-label={`更新 ${stock.symbol} 股價`} title="更新股價" disabled={refreshingStockId === stock.id || stock.market === 'OTHER'} onClick={() => void handleRefreshSavedStock(stock)}>{refreshingStockId === stock.id ? <RefreshCw className="spin-icon" size={15} /> : <RefreshCw size={15} />}</button><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={() => openEditStock(stock)}><Edit3 size={15} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={() => void handleDeleteStock(stock)}><Trash2 size={15} /></button></td>
+                      <td className="row-actions"><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={() => openEditStock(stock)}><Edit3 size={15} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={() => void handleDeleteStock(stock)}><Trash2 size={15} /></button></td>
                     </tr>
                   })}
                 </tbody>
@@ -368,13 +386,13 @@ export function AssetsPage({ stocks, cash, displayMode, onSaveStock, onDeleteSto
       {stockModalOpen && <Modal title={editingStock ? '編輯股票資產' : '新增股票資產'} description="持股資料只存這台裝置；查價時只送股票代號給公開行情服務。" onClose={() => setStockModalOpen(false)}>
         <form className="asset-form" onSubmit={(event) => void handleStockSubmit(event)}>
           <div className="form-grid form-grid-two">
-            <FormField label="股票代號"><input required value={stockDraft.symbol} onChange={(event) => { setStockDraft((current) => ({ ...current, symbol: event.target.value.toUpperCase(), currentPriceSource: current.symbol === event.target.value.toUpperCase() ? current.currentPriceSource : 'manual', currentPriceFetchedAt: current.symbol === event.target.value.toUpperCase() ? current.currentPriceFetchedAt : undefined, currentPriceMarketAt: current.symbol === event.target.value.toUpperCase() ? current.currentPriceMarketAt : undefined })); setQuoteState({ status: 'idle', message: '輸入代號後離開欄位，會自動查詢公開行情；也可以手動更新。', quote: null }) }} onBlur={() => { if (stockDraft.symbol.trim()) void refreshStockQuote() }} placeholder="例如 00878" /></FormField>
+            <FormField label="股票代號"><input required value={stockDraft.symbol} onChange={(event) => { setStockDraft((current) => ({ ...current, symbol: event.target.value.toUpperCase(), currentPriceSource: current.symbol === event.target.value.toUpperCase() ? current.currentPriceSource : 'manual', currentPriceFetchedAt: current.symbol === event.target.value.toUpperCase() ? current.currentPriceFetchedAt : undefined, currentPriceMarketAt: current.symbol === event.target.value.toUpperCase() ? current.currentPriceMarketAt : undefined })); setQuoteState({ status: 'idle', message: '輸入代號後離開欄位，會自動查詢公開行情；批次更新請使用頁面上方按鈕。', quote: null }) }} onBlur={() => { if (stockDraft.symbol.trim()) void refreshStockQuote() }} placeholder="例如 00878" /></FormField>
             <FormField label="股票名稱"><input required value={stockDraft.name} onChange={(event) => setStockDraft((current) => ({ ...current, name: event.target.value }))} placeholder="例如 國泰永續高股息" /></FormField>
-            <FormField label="市場"><div className="select-wrap"><select value={stockDraft.market} onChange={(event) => { const market = event.target.value as Market; setStockDraft((current) => ({ ...current, market, currentPriceSource: 'manual', currentPriceFetchedAt: undefined, currentPriceMarketAt: undefined })); setQuoteState({ status: 'idle', message: market === 'OTHER' ? '其他市場目前請手動輸入股價。' : '輸入代號後離開欄位，會自動查詢公開行情；也可以手動更新。', quote: null }) }}><option value="TW">台股</option><option value="US">美股</option><option value="OTHER">其他</option></select><SelectChevron /></div></FormField>
+            <FormField label="市場"><div className="select-wrap"><select value={stockDraft.market} onChange={(event) => { const market = event.target.value as Market; setStockDraft((current) => ({ ...current, market, currentPriceSource: 'manual', currentPriceFetchedAt: undefined, currentPriceMarketAt: undefined })); setQuoteState({ status: 'idle', message: market === 'OTHER' ? '其他市場目前請手動輸入股價。' : '輸入代號後離開欄位，會自動查詢公開行情；價格也可以手動輸入。', quote: null }) }}><option value="TW">台股</option><option value="US">美股</option><option value="OTHER">其他</option></select><SelectChevron /></div></FormField>
             <FormField label="幣別"><div className="select-wrap"><select value={stockDraft.currency} onChange={(event) => setStockDraft((current) => ({ ...current, currency: event.target.value as Currency, exchangeRateToTwd: event.target.value === 'TWD' ? 1 : current.exchangeRateToTwd }))}><option value="TWD">TWD / 新台幣</option><option value="USD">USD / 美元</option></select><SelectChevron /></div></FormField>
             <FormField label="持有股數"><input required min="0" step="any" type="number" value={stockDraft.shares || ''} onChange={(event) => setStockDraft((current) => ({ ...current, shares: Number(event.target.value) }))} placeholder="0" /></FormField>
             <FormField label="平均成本" hint={`/${stockDraft.currency}`}><input required min="0" step="any" type="number" value={stockDraft.averageCost || ''} onChange={(event) => setStockDraft((current) => ({ ...current, averageCost: Number(event.target.value) }))} placeholder="0" /></FormField>
-            <div className="quote-control"><FormField label="目前股價" hint={`/${stockDraft.currency}`}><input required min="0" step="any" type="number" value={stockDraft.currentPrice || ''} onChange={(event) => { setStockDraft((current) => ({ ...current, currentPrice: Number(event.target.value), currentPriceSource: 'manual', currentPriceFetchedAt: undefined, currentPriceMarketAt: undefined })); setQuoteState({ status: 'idle', message: '目前價格已改為手動輸入；如需最新值請更新行情。', quote: null }) }} placeholder="自動帶入或手動輸入" /></FormField><button type="button" className="button button-secondary quote-refresh-button" disabled={quoteState.status === 'loading' || stockDraft.market === 'OTHER' || !stockDraft.symbol.trim()} onClick={() => void refreshStockQuote()}><RefreshCw className={quoteState.status === 'loading' ? 'spin-icon' : undefined} size={14} />{quoteState.status === 'loading' ? '查詢中' : '更新行情'}</button></div>
+            <FormField label="目前股價" hint={`/${stockDraft.currency}`}><input required min="0" step="any" type="number" value={stockDraft.currentPrice || ''} onChange={(event) => { setStockDraft((current) => ({ ...current, currentPrice: Number(event.target.value), currentPriceSource: 'manual', currentPriceFetchedAt: undefined, currentPriceMarketAt: undefined })); setQuoteState({ status: 'idle', message: '目前價格已改為手動輸入；新增股票時會自動查詢行情。', quote: null }) }} placeholder="自動帶入或手動輸入" /></FormField>
             <FormField label="匯率" hint="換算 TWD"><input required min="0.0001" step="any" type="number" value={stockDraft.exchangeRateToTwd} disabled={stockDraft.currency === 'TWD'} onChange={(event) => setStockDraft((current) => ({ ...current, exchangeRateToTwd: Number(event.target.value) }))} /></FormField>
             <FormField label="年度每股配息" hint={`/${stockDraft.currency}`}><input min="0" step="any" type="number" value={stockDraft.estimatedAnnualDividendPerShare || ''} onChange={(event) => setStockDraft((current) => ({ ...current, estimatedAnnualDividendPerShare: Number(event.target.value) }))} placeholder="可留空" /></FormField>
             <FormField label="預估殖利率" hint="%"><input min="0" step="any" type="number" value={stockDraft.estimatedYieldPercent || ''} onChange={(event) => setStockDraft((current) => ({ ...current, estimatedYieldPercent: Number(event.target.value) }))} placeholder="例如 5" /></FormField>
