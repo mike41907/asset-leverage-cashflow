@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchStockQuote, normalizeYahooSymbol, parseYahooChartPayload, parseYahooChartText } from './quoteService'
+import { fetchStockQuote, hasChineseName, normalizeYahooSymbol, parseTaiwanStockNameText, parseYahooChartPayload, parseYahooChartText } from './quoteService'
 
 const chartPayload = {
   chart: {
@@ -46,6 +46,35 @@ describe('quote service', () => {
   it('extracts JSON when the public reader prefixes the provider response with text', () => {
     const quote = parseYahooChartText(`Title:\nURL Source: https://example.invalid\nMarkdown Content:\n${JSON.stringify(chartPayload)}`, '2330', 'TW', '2026-08-21T03:00:00.000Z')
     expect(quote.price).toBe(1_234.5)
+  })
+
+  it('extracts a Chinese Taiwan stock name from the public Yahoo Taiwan page', () => {
+    const name = parseTaiwanStockNameText('Title: 台積電(2330.TW) 走勢圖 - Yahoo股市\n\n# Yahoo股市\n\n# 台積電\n2330', '2330')
+
+    expect(name).toBe('台積電')
+    expect(hasChineseName(name ?? '')).toBe(true)
+  })
+
+  it('uses the optional Taiwan page lookup when the chart metadata is English', async () => {
+    const englishChartPayload = {
+      ...chartPayload,
+      chart: {
+        ...chartPayload.chart,
+        result: [{
+          ...chartPayload.chart.result[0],
+          meta: { ...chartPayload.chart.result[0].meta, longName: 'Taiwan Semiconductor Manufacturing Company Limited' },
+        }],
+      },
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify(englishChartPayload) })
+      .mockResolvedValueOnce({ ok: true, text: async () => 'Title: 台積電(2330.TW) 走勢圖 - Yahoo股市\n\n# 台積電' })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const quote = await fetchStockQuote('2330', 'TW')
+
+    expect(quote.name).toBe('台積電')
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining('https://r.jina.ai/http://tw.stock.yahoo.com/quote/2330.TW'), expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
 
   it('uses the public reader endpoint and returns a parsed quote', async () => {

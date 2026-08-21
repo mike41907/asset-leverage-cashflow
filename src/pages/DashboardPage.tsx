@@ -47,7 +47,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.2.1</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.2.2</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -222,7 +222,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.2.1 完成項目</div>
+              <div className="section-kicker">V1.2.2 完成項目</div>
               <h2>把本機資料帶得走，換裝置也不怕。</h2>
               <p>完整保留投資資產、借款、現金流與模擬方案，備份檔只在你的裝置之間流動。</p>
               <div className="next-step-list">
