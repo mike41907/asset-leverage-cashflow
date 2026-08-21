@@ -9,6 +9,8 @@ export type CashFlowType = 'income' | 'expense'
 export type RepaymentMethod = 'interest-only' | 'equal-principal' | 'amortized'
 export type DividendIncomeMode = 'gross' | 'net'
 export type StockPriceSource = 'manual' | 'yahoo-public'
+export type StockDividendSource = 'manual' | 'yahoo-public'
+export type StockDividendPeriod = 'trailing-12-months' | 'previous-calendar-year'
 export type RealEstateType = 'residential' | 'commercial' | 'land' | 'other'
 export type LiabilityType = 'mortgage' | 'car-loan' | 'personal-loan' | 'credit' | 'other'
 
@@ -36,6 +38,12 @@ export interface StockAsset extends Asset {
   currentPriceMarketAt?: string
   estimatedAnnualDividendPerShare: number
   estimatedYieldPercent: number
+  /** Dividend provenance is optional so existing local data and V1.x backups remain compatible. */
+  dividendSource?: StockDividendSource
+  dividendFetchedAt?: string
+  dividendPeriod?: StockDividendPeriod
+  dividendPeriodStart?: string
+  dividendPeriodEnd?: string
   asCollateral: boolean
   notes: string
 }

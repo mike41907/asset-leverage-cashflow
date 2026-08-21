@@ -13,7 +13,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react'
-import type { CashAsset, Currency, Market, RealEstateAsset, RealEstateType, StockAsset } from '../domain/models'
+import type { CashAsset, Currency, Market, RealEstateAsset, RealEstateType, StockAsset, StockDividendPeriod } from '../domain/models'
 import { calculateCashValue, calculateRealEstateValueTwd, calculateStockMarketValue, calculateStockUnrealizedGain, calculateStockUnrealizedGainPercent } from '../domain/calculations'
 import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
@@ -51,6 +51,7 @@ const defaultStockDraft: StockDraft = {
   currentPriceSource: 'manual',
   estimatedAnnualDividendPerShare: 0,
   estimatedYieldPercent: 0,
+  dividendSource: 'manual',
   asCollateral: false,
   notes: '',
 }
@@ -134,6 +135,46 @@ function preferredStockName(currentName: string, quoteName: string): string {
   return current
 }
 
+function dividendPeriodLabel(period: StockDividendPeriod | undefined): string {
+  return period === 'trailing-12-months' ? '近 12 個月' : period === 'previous-calendar-year' ? '前一完整年度' : '手動估算'
+}
+
+function dividendCurrency(stock: Pick<StockAsset, 'currency'>): string {
+  return stock.currency === 'USD' ? '$' : 'NT$'
+}
+
+function quoteDividendFields(quote: StockQuote, current?: Pick<StockDraft, 'estimatedAnnualDividendPerShare' | 'dividendSource'>): Partial<Pick<StockDraft, 'estimatedAnnualDividendPerShare' | 'estimatedYieldPercent' | 'dividendSource' | 'dividendFetchedAt' | 'dividendPeriod' | 'dividendPeriodStart' | 'dividendPeriodEnd'>> {
+  if (!quote.dividend) {
+    return current?.dividendSource === 'yahoo-public' && current.estimatedAnnualDividendPerShare > 0 && quote.price > 0
+      ? { estimatedYieldPercent: current.estimatedAnnualDividendPerShare / quote.price * 100 }
+      : {}
+  }
+  return {
+    estimatedAnnualDividendPerShare: quote.dividend.annualDividendPerShare,
+    estimatedYieldPercent: quote.price > 0 ? quote.dividend.annualDividendPerShare / quote.price * 100 : 0,
+    dividendSource: 'yahoo-public',
+    dividendFetchedAt: quote.fetchedAt,
+    dividendPeriod: quote.dividend.period,
+    dividendPeriodStart: quote.dividend.periodStart,
+    dividendPeriodEnd: quote.dividend.periodEnd,
+  }
+}
+
+function applyQuoteToStock(stock: StockAsset, quote: StockQuote): StockAsset {
+  return {
+    ...stock,
+    currentPrice: quote.price,
+    currentPriceSource: 'yahoo-public',
+    currentPriceFetchedAt: quote.fetchedAt,
+    currentPriceMarketAt: quote.marketAt ?? undefined,
+    name: preferredStockName(stock.name, quote.name),
+    currency: quote.currency,
+    exchangeRateToTwd: quote.currency === 'TWD' ? 1 : stock.exchangeRateToTwd,
+    ...quoteDividendFields(quote, stock),
+    updatedAt: new Date().toISOString(),
+  }
+}
+
 function StockMobileCard({ stock, displayMode, onEdit, onDelete }: { stock: StockAsset; displayMode: 'exact' | 'compact'; onEdit: () => void; onDelete: () => void }) {
   const gain = calculateStockUnrealizedGain(stock)
   const gainPercent = calculateStockUnrealizedGainPercent(stock)
@@ -149,7 +190,7 @@ function StockMobileCard({ stock, displayMode, onEdit, onDelete }: { stock: Stoc
         <div className="stock-mobile-card-holding"><span>持有 {formatNumber(stock.shares)}</span><small>成本 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.averageCost, 2)}</small></div>
         <div className="stock-mobile-card-value"><span>市值</span><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong><small>現價 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</small></div>
       </div>
-      <div className="stock-mobile-card-footer"><span className={isPositive ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)} <small>{formatPercent(gainPercent)}</small></span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span><span className="stock-mobile-card-collateral">質押擔保 {stock.asCollateral ? '是' : '否'}</span></div>
+      <div className="stock-mobile-card-footer"><span className={isPositive ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)} <small>{formatPercent(gainPercent)}</small></span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span><span className="stock-mobile-card-dividend">年配息 {dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)} · 殖利率 {formatPercent(stock.estimatedYieldPercent)}<small>{dividendPeriodLabel(stock.dividendPeriod)}</small></span><span className="stock-mobile-card-collateral">質押擔保 {stock.asCollateral ? '是' : '否'}</span></div>
     </article>
   )
 }
@@ -263,10 +304,11 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
         currentPriceMarketAt: quote.marketAt ?? undefined,
         name: preferredStockName(current.name, quote.name),
         currency: current.market === 'TW' ? 'TWD' : current.market === 'US' ? 'USD' : current.currency,
+        ...quoteDividendFields(quote, current),
       }))
       setQuoteState({
         status: 'success',
-        message: `已取得 ${quote.name}（${quote.yahooSymbol}）：${quote.currency === 'USD' ? '$' : 'NT$'}${formatNumber(quote.price, 2)} · 行情時間 ${formatQuoteTime(quote.marketAt)}`,
+        message: `已取得 ${quote.name}（${quote.yahooSymbol}）：${quote.currency === 'USD' ? '$' : 'NT$'}${formatNumber(quote.price, 2)} · 行情時間 ${formatQuoteTime(quote.marketAt)}${quote.dividend ? ` · ${dividendPeriodLabel(quote.dividend.period)}配息已更新` : ' · 查無股利事件，保留原配息'}`,
         quote,
       })
       return quote
@@ -292,6 +334,7 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
           name: preferredStockName(draftToSave.name, quote.name),
           currency: quote.currency,
           exchangeRateToTwd: quote.currency === 'TWD' ? 1 : draftToSave.exchangeRateToTwd,
+          ...quoteDividendFields(quote, draftToSave),
         }
       }
     }
@@ -356,17 +399,7 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
     try {
       const results = await Promise.allSettled(refreshableStocks.map(async (stock) => {
         const quote = await fetchStockQuote(stock.symbol, stock.market)
-        return {
-          ...stock,
-          currentPrice: quote.price,
-          currentPriceSource: 'yahoo-public' as const,
-          currentPriceFetchedAt: quote.fetchedAt,
-          currentPriceMarketAt: quote.marketAt ?? undefined,
-          name: preferredStockName(stock.name, quote.name),
-          currency: quote.currency,
-          exchangeRateToTwd: quote.currency === 'TWD' ? 1 : stock.exchangeRateToTwd,
-          updatedAt: new Date().toISOString(),
-        }
+        return applyQuoteToStock(stock, quote)
       }))
       const updatedStocks = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
       const failedStocks = results.flatMap((result, index) => result.status === 'rejected' ? [{ symbol: refreshableStocks[index].symbol, error: getQuoteErrorMessage(result.reason) }] : [])
@@ -394,6 +427,31 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
 
   const handleDeleteRealEstate = async (asset: RealEstateAsset) => {
     if (window.confirm(`確定要刪除「${asset.name}」嗎？`)) await onDeleteRealEstate(asset.id)
+  }
+
+  const clearDividendMetadata = (current: StockDraft) => ({
+    ...current,
+    dividendSource: 'manual' as const,
+    dividendFetchedAt: undefined,
+    dividendPeriod: undefined,
+    dividendPeriodStart: undefined,
+    dividendPeriodEnd: undefined,
+  })
+
+  const updateManualDividend = (annualDividendPerShare: number) => {
+    setStockDraft((current) => ({
+      ...clearDividendMetadata(current),
+      estimatedAnnualDividendPerShare: annualDividendPerShare,
+      estimatedYieldPercent: current.currentPrice > 0 ? annualDividendPerShare / current.currentPrice * 100 : current.estimatedYieldPercent,
+    }))
+  }
+
+  const updateManualYield = (estimatedYieldPercent: number) => {
+    setStockDraft((current) => ({
+      ...clearDividendMetadata(current),
+      estimatedAnnualDividendPerShare: current.currentPrice > 0 ? current.currentPrice * estimatedYieldPercent / 100 : current.estimatedAnnualDividendPerShare,
+      estimatedYieldPercent,
+    }))
   }
 
   return (
@@ -431,7 +489,7 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
           ) : (
             <div className="table-wrap stock-desktop-table">
               <table className="data-table">
-                <thead><tr><th>股票</th><th>持有股數</th><th>現價</th><th>市值</th><th>未實現損益</th><th>質押擔保</th><th aria-label="操作" /></tr></thead>
+                <thead><tr><th>股票</th><th>持有股數</th><th>現價</th><th>市值</th><th>未實現損益</th><th>配息／殖利率</th><th>質押擔保</th><th aria-label="操作" /></tr></thead>
                 <tbody>
                   {filteredStocks.map((stock) => {
                     const gain = calculateStockUnrealizedGain(stock)
@@ -442,6 +500,7 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
                       <td data-label="現價"><strong>{stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</strong><small className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</small></td>
                       <td data-label="市值"><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong></td>
                       <td data-label="未實現損益"><span className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)}</span><small className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatPercent(gainPercent)}</small></td>
+                      <td data-label="配息／殖利率"><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small className="dividend-source">{formatPercent(stock.estimatedYieldPercent)} · {dividendPeriodLabel(stock.dividendPeriod)}</small></td>
                       <td data-label="質押擔保"><span className={`collateral-tag ${stock.asCollateral ? 'is-on' : ''}`}>{stock.asCollateral ? <><Check size={13} />是</> : '否'}</span></td>
                       <td className="row-actions"><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={() => openEditStock(stock)}><Edit3 size={15} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={() => void handleDeleteStock(stock)}><Trash2 size={15} /></button></td>
                     </tr>
@@ -498,21 +557,22 @@ export function AssetsPage({ stocks, cash, realEstate, displayMode, onSaveStock,
         </section>
       )}
 
-      {stockModalOpen && <Modal title={editingStock ? '編輯股票資產' : '新增股票資產'} description="持股資料只存這台裝置；查價時只送股票代號給公開行情服務，台股會同步帶入中文名稱。" onClose={() => setStockModalOpen(false)}>
+      {stockModalOpen && <Modal title={editingStock ? '編輯股票資產' : '新增股票資產'} description="持股資料只存這台裝置；查價時只送股票代號給公開行情服務，台股會同步帶入中文名稱與配息資料。" onClose={() => setStockModalOpen(false)}>
         <form className="asset-form" onSubmit={(event) => void handleStockSubmit(event)}>
           <div className="form-grid form-grid-two">
-            <FormField label="股票代號"><input required value={stockDraft.symbol} onChange={(event) => { const symbol = event.target.value.toUpperCase(); setStockDraft((current) => ({ ...current, symbol, name: current.symbol === symbol ? current.name : '', currentPriceSource: current.symbol === symbol ? current.currentPriceSource : 'manual', currentPriceFetchedAt: current.symbol === symbol ? current.currentPriceFetchedAt : undefined, currentPriceMarketAt: current.symbol === symbol ? current.currentPriceMarketAt : undefined })); setQuoteState({ status: 'idle', message: '輸入代號後離開欄位，會自動查詢行情與中文名稱；批次更新請使用頁面上方按鈕。', quote: null }) }} onBlur={() => { if (stockDraft.symbol.trim()) void refreshStockQuote() }} placeholder="例如 00878" /></FormField>
+            <FormField label="股票代號"><input required value={stockDraft.symbol} onChange={(event) => { const symbol = event.target.value.toUpperCase(); setStockDraft((current) => symbol === current.symbol ? { ...current, symbol } : { ...clearDividendMetadata(current), symbol, name: '', currentPrice: 0, currentPriceSource: 'manual', currentPriceFetchedAt: undefined, currentPriceMarketAt: undefined, estimatedAnnualDividendPerShare: 0, estimatedYieldPercent: 0 }); setQuoteState({ status: 'idle', message: '輸入代號後離開欄位，會自動查詢行情、中文名稱與配息；批次更新請使用頁面上方按鈕。', quote: null }) }} onBlur={() => { if (stockDraft.symbol.trim()) void refreshStockQuote() }} placeholder="例如 00878" /></FormField>
             <FormField label="股票名稱" hint={stockDraft.market === 'TW' ? '台股自動帶入中文' : undefined}><input required value={stockDraft.name} onChange={(event) => setStockDraft((current) => ({ ...current, name: event.target.value }))} placeholder={stockDraft.market === 'TW' ? '自動帶入或例如 國泰永續高股息' : '自動帶入或手動輸入'} /></FormField>
             <FormField label="市場"><div className="select-wrap"><select value={stockDraft.market} onChange={(event) => { const market = event.target.value as Market; setStockDraft((current) => ({ ...current, market, name: '', currentPriceSource: 'manual', currentPriceFetchedAt: undefined, currentPriceMarketAt: undefined })); setQuoteState({ status: 'idle', message: market === 'OTHER' ? '其他市場目前請手動輸入股價與名稱。' : '輸入代號後離開欄位，會自動查詢行情與名稱；價格也可以手動輸入。', quote: null }) }}><option value="TW">台股</option><option value="US">美股</option><option value="OTHER">其他</option></select><SelectChevron /></div></FormField>
             <FormField label="幣別"><div className="select-wrap"><select value={stockDraft.currency} onChange={(event) => setStockDraft((current) => ({ ...current, currency: event.target.value as Currency, exchangeRateToTwd: event.target.value === 'TWD' ? 1 : current.exchangeRateToTwd }))}><option value="TWD">TWD / 新台幣</option><option value="USD">USD / 美元</option></select><SelectChevron /></div></FormField>
             <FormField label="持有股數"><input required min="0" step="any" type="number" value={stockDraft.shares || ''} onChange={(event) => setStockDraft((current) => ({ ...current, shares: Number(event.target.value) }))} placeholder="0" /></FormField>
             <FormField label="平均成本" hint={`/${stockDraft.currency}`}><input required min="0" step="any" type="number" value={stockDraft.averageCost || ''} onChange={(event) => setStockDraft((current) => ({ ...current, averageCost: Number(event.target.value) }))} placeholder="0" /></FormField>
-            <FormField label="目前股價" hint={`/${stockDraft.currency}`}><input required min="0" step="any" type="number" value={stockDraft.currentPrice || ''} onChange={(event) => { setStockDraft((current) => ({ ...current, currentPrice: Number(event.target.value), currentPriceSource: 'manual', currentPriceFetchedAt: undefined, currentPriceMarketAt: undefined })); setQuoteState({ status: 'idle', message: '目前價格已改為手動輸入；新增股票時會自動查詢行情。', quote: null }) }} placeholder="自動帶入或手動輸入" /></FormField>
+            <FormField label="目前股價" hint={`/${stockDraft.currency}`}><input required min="0" step="any" type="number" value={stockDraft.currentPrice || ''} onChange={(event) => { const currentPrice = Number(event.target.value); setStockDraft((current) => ({ ...current, currentPrice, currentPriceSource: 'manual', currentPriceFetchedAt: undefined, currentPriceMarketAt: undefined, estimatedYieldPercent: current.dividendSource === 'yahoo-public' && currentPrice > 0 ? current.estimatedAnnualDividendPerShare / currentPrice * 100 : current.estimatedYieldPercent })); setQuoteState({ status: 'idle', message: '目前價格已改為手動輸入；殖利率會依自動配息資料重新換算。', quote: null }) }} placeholder="自動帶入或手動輸入" /></FormField>
             <FormField label="匯率" hint="換算 TWD"><input required min="0.0001" step="any" type="number" value={stockDraft.exchangeRateToTwd} disabled={stockDraft.currency === 'TWD'} onChange={(event) => setStockDraft((current) => ({ ...current, exchangeRateToTwd: Number(event.target.value) }))} /></FormField>
-            <FormField label="年度每股配息" hint={`/${stockDraft.currency}`}><input min="0" step="any" type="number" value={stockDraft.estimatedAnnualDividendPerShare || ''} onChange={(event) => setStockDraft((current) => ({ ...current, estimatedAnnualDividendPerShare: Number(event.target.value) }))} placeholder="可留空" /></FormField>
-            <FormField label="預估殖利率" hint="%"><input min="0" step="any" type="number" value={stockDraft.estimatedYieldPercent || ''} onChange={(event) => setStockDraft((current) => ({ ...current, estimatedYieldPercent: Number(event.target.value) }))} placeholder="例如 5" /></FormField>
+            <FormField label="年度每股配息" hint={`/${stockDraft.currency}`}><input min="0" step="any" type="number" value={stockDraft.estimatedAnnualDividendPerShare || ''} onChange={(event) => updateManualDividend(Number(event.target.value))} placeholder="自動帶入或手動輸入" /></FormField>
+            <FormField label="預估殖利率" hint="%"><input min="0" step="any" type="number" value={stockDraft.estimatedYieldPercent || ''} onChange={(event) => updateManualYield(Number(event.target.value))} placeholder="自動計算或手動輸入" /></FormField>
           </div>
           <div className={`quote-status quote-status-${quoteState.status}`} role="status" aria-live="polite"><Info size={14} /><span>{quoteState.message}</span>{quoteState.status === 'success' && <small>{PUBLIC_QUOTE_PROVIDER_LABEL}</small>}</div>
+          {stockDraft.dividendSource === 'yahoo-public' && <div className="dividend-auto-note" role="status"><Info size={14} /><span>自動配息：{dividendPeriodLabel(stockDraft.dividendPeriod)} {stockDraft.dividendPeriodStart}～{stockDraft.dividendPeriodEnd}，年配息 {dividendCurrency(stockDraft)}{formatNumber(stockDraft.estimatedAnnualDividendPerShare, 2)}，年化殖利率 {formatPercent(stockDraft.estimatedYieldPercent)}。</span></div>}
           <label className="checkbox-field"><input type="checkbox" checked={stockDraft.asCollateral} onChange={(event) => setStockDraft((current) => ({ ...current, asCollateral: event.target.checked }))} /><span className="custom-checkbox"><Check size={13} /></span><span>標記為未來可用的質押擔保品</span></label>
           <FormField label="備註" wide><textarea value={stockDraft.notes} onChange={(event) => setStockDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：價格更新日期、資料來源或自己的備註" rows={3} /></FormField>
           <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setStockModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存股票</button></div>

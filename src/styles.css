@@ -252,7 +252,7 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
   .asset-section-summary { align-items: flex-start; }.stock-mobile-card { padding: 14px; }.stock-mobile-card-value strong { font-size: 19px; }.stock-mobile-card-footer { gap: 6px 10px; }.stock-mobile-card-collateral { width: 100%; margin-left: 0; }
 }
 
-/* V1.2.3 mobile overflow guard: every page must shrink inside the phone viewport. */
+/* Mobile overflow guard: every page must shrink inside the phone viewport. */
 .main-shell, .main-content, .page-content-wrap, .page-container, .page-heading, .heading-actions, .card,
 .form-grid, .form-field, .select-wrap, .input-with-suffix { min-width: 0; }
 .form-field input, .form-field select, .form-field textarea { min-width: 0; max-width: 100%; }
@@ -287,4 +287,20 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
   .passive-target-control-label small { max-width: 100%; overflow-wrap: anywhere; }
   .passive-target-mode-badge { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
   .passive-target-current-card > div { min-width: 0; }
+}
+
+/* V1.3.0 dividend provenance and cash-flow visibility. */
+.dividend-source { color: var(--ink-muted); font-size: 9px; }
+.dividend-auto-note { display: flex; align-items: flex-start; gap: 7px; padding: 10px 12px; border: 1px solid rgba(14, 116, 144, .22); border-radius: 10px; color: var(--teal-dark); background: var(--teal-soft); font-size: 10px; line-height: 1.5; }
+.dividend-auto-note svg { flex: 0 0 auto; margin-top: 1px; }
+.dividend-auto-note span { min-width: 0; overflow-wrap: anywhere; }
+.stock-mobile-card-dividend { color: var(--teal-dark); }
+.stock-mobile-card-dividend small { display: inline; margin-left: 5px; color: var(--ink-muted); font-size: 9px; }
+
+@media (max-width: 820px) {
+  .stock-mobile-card-dividend { width: 100%; }
+}
+
+@media (max-width: 470px) {
+  .stock-mobile-card-dividend small { display: block; margin: 3px 0 0; }
 }

@@ -1,4 +1,4 @@
-import type { Currency, Market } from '../domain/models'
+import type { Currency, Market, StockDividendPeriod } from '../domain/models'
 
 export const PUBLIC_QUOTE_PROVIDER_LABEL = 'Yahoo Finance 公開行情'
 export const PUBLIC_QUOTE_PROXY_LABEL = '透過 Jina 公開讀取代理'
@@ -6,8 +6,17 @@ export const PUBLIC_QUOTE_PROXY_LABEL = '透過 Jina 公開讀取代理'
 const YAHOO_CHART_BASE_URL = 'http://query1.finance.yahoo.com/v8/finance/chart'
 const TAIWAN_YAHOO_QUOTE_BASE_URL = 'http://tw.stock.yahoo.com/quote'
 const JINA_READER_BASE_URL = 'https://r.jina.ai/'
+const YAHOO_CHART_QUERY = '?interval=1d%26range=2y%26includePrePost=false%26events=div%2Csplits'
 const REQUEST_TIMEOUT_MS = 10_000
 const CHINESE_NAME_TIMEOUT_MS = 15_000
+
+export interface StockDividendQuote {
+  annualDividendPerShare: number
+  period: StockDividendPeriod
+  periodStart: string
+  periodEnd: string
+  paymentCount: number
+}
 
 export interface StockQuote {
   symbol: string
@@ -18,6 +27,7 @@ export interface StockQuote {
   marketAt: string | null
   fetchedAt: string
   source: 'yahoo-public'
+  dividend: StockDividendQuote | null
 }
 
 interface YahooChartResult {
@@ -25,6 +35,12 @@ interface YahooChartResult {
   indicators?: {
     quote?: Array<{
       close?: unknown
+    }>
+  }
+  events?: {
+    dividends?: Record<string, {
+      amount?: unknown
+      date?: unknown
     }>
   }
 }
@@ -85,6 +101,63 @@ function firstObject<T>(value: unknown): T | null {
   return value && typeof value === 'object' ? value as T : null
 }
 
+function readEventTimestamp(value: unknown): number | null {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
+  if (!Number.isFinite(numeric) || numeric <= 0) return null
+  return numeric > 1_000_000_000_000 ? numeric : numeric * 1000
+}
+
+function dateOnly(value: number): string {
+  return new Date(value).toISOString().slice(0, 10)
+}
+
+function sumDividendEvents(events: Array<{ amount: number; timestamp: number }>): number {
+  return Number(events.reduce((total, event) => total + event.amount, 0).toFixed(6))
+}
+
+export function parseYahooDividendEvents(result: unknown, asOf = new Date()): StockDividendQuote | null {
+  const chartResult = firstObject<YahooChartResult>(result)
+  const dividends = chartResult?.events?.dividends
+  if (!dividends) return null
+
+  const asOfTime = asOf.getTime()
+  if (!Number.isFinite(asOfTime)) return null
+  const dividendEvents = Object.values(dividends).flatMap((event) => {
+    const amount = typeof event.amount === 'number' ? event.amount : Number(event.amount)
+    const timestamp = readEventTimestamp(event.date)
+    return Number.isFinite(amount) && amount > 0 && timestamp !== null && timestamp <= asOfTime
+      ? [{ amount, timestamp }]
+      : []
+  })
+  if (dividendEvents.length === 0) return null
+
+  const trailingStart = asOfTime - 365 * 24 * 60 * 60 * 1000
+  const trailingEvents = dividendEvents.filter((event) => event.timestamp >= trailingStart)
+  if (trailingEvents.length > 0) {
+    return {
+      annualDividendPerShare: sumDividendEvents(trailingEvents),
+      period: 'trailing-12-months',
+      periodStart: dateOnly(trailingStart),
+      periodEnd: dateOnly(asOfTime),
+      paymentCount: trailingEvents.length,
+    }
+  }
+
+  const asOfYear = new Date(asOfTime).getUTCFullYear()
+  const previousYearStart = Date.UTC(asOfYear - 1, 0, 1)
+  const currentYearStart = Date.UTC(asOfYear, 0, 1)
+  const previousYearEvents = dividendEvents.filter((event) => event.timestamp >= previousYearStart && event.timestamp < currentYearStart)
+  if (previousYearEvents.length === 0) return null
+
+  return {
+    annualDividendPerShare: sumDividendEvents(previousYearEvents),
+    period: 'previous-calendar-year',
+    periodStart: dateOnly(previousYearStart),
+    periodEnd: dateOnly(currentYearStart - 1),
+    paymentCount: previousYearEvents.length,
+  }
+}
+
 export function parseYahooChartPayload(
   payload: unknown,
   requestedSymbol: string,
@@ -116,6 +189,7 @@ export function parseYahooChartPayload(
     marketAt: readProviderTimestamp(meta.regularMarketTime),
     fetchedAt,
     source: 'yahoo-public',
+    dividend: parseYahooDividendEvents(result, new Date(fetchedAt)),
   }
 }
 
@@ -153,7 +227,7 @@ export function parseTaiwanStockNameText(text: string, requestedSymbol: string):
 }
 
 function createProxyUrl(yahooSymbol: string): string {
-  const target = `${YAHOO_CHART_BASE_URL}/${yahooSymbol}?interval=1m%26range=1d%26includePrePost=false`
+  const target = `${YAHOO_CHART_BASE_URL}/${yahooSymbol}${YAHOO_CHART_QUERY}`
   return `${JINA_READER_BASE_URL}${target}`
 }
 

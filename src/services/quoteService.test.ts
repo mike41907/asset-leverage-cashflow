@@ -43,6 +43,62 @@ describe('quote service', () => {
     expect(quote.marketAt).toBe(new Date(1_725_000_000 * 1000).toISOString())
   })
 
+  it('uses trailing twelve-month dividends to calculate the annual per-share amount', () => {
+    const fetchedAt = '2026-08-21T00:00:00.000Z'
+    const payload = {
+      chart: {
+        result: [{
+          ...chartPayload.chart.result[0],
+          events: {
+            dividends: {
+              '2025-09-01': { amount: 1, date: Date.parse('2025-09-01T00:00:00.000Z') / 1000 },
+              '2026-03-01': { amount: 0.5, date: Date.parse('2026-03-01T00:00:00.000Z') / 1000 },
+              '2026-08-01': { amount: 0.8, date: Date.parse('2026-08-01T00:00:00.000Z') / 1000 },
+              '2024-12-01': { amount: 10, date: Date.parse('2024-12-01T00:00:00.000Z') / 1000 },
+            },
+          },
+        }],
+      },
+    }
+
+    const quote = parseYahooChartPayload(payload, '00878', 'TW', fetchedAt)
+
+    expect(quote.dividend).toEqual({
+      annualDividendPerShare: 2.3,
+      period: 'trailing-12-months',
+      periodStart: '2025-08-21',
+      periodEnd: '2026-08-21',
+      paymentCount: 3,
+    })
+  })
+
+  it('falls back to the previous complete calendar year when trailing dividends are unavailable', () => {
+    const payload = {
+      chart: {
+        result: [{
+          ...chartPayload.chart.result[0],
+          events: {
+            dividends: {
+              '2025-02-01': { amount: 1.2, date: Date.parse('2025-02-01T00:00:00.000Z') / 1000 },
+              '2025-08-01': { amount: 0.8, date: Date.parse('2025-08-01T00:00:00.000Z') / 1000 },
+              '2024-12-01': { amount: 10, date: Date.parse('2024-12-01T00:00:00.000Z') / 1000 },
+            },
+          },
+        }],
+      },
+    }
+
+    const quote = parseYahooChartPayload(payload, '00878', 'TW', '2026-08-21T00:00:00.000Z')
+
+    expect(quote.dividend).toEqual({
+      annualDividendPerShare: 2,
+      period: 'previous-calendar-year',
+      periodStart: '2025-01-01',
+      periodEnd: '2025-12-31',
+      paymentCount: 2,
+    })
+  })
+
   it('extracts JSON when the public reader prefixes the provider response with text', () => {
     const quote = parseYahooChartText(`Title:\nURL Source: https://example.invalid\nMarkdown Content:\n${JSON.stringify(chartPayload)}`, '2330', 'TW', '2026-08-21T03:00:00.000Z')
     expect(quote.price).toBe(1_234.5)
@@ -90,6 +146,8 @@ describe('quote service', () => {
       expect.stringContaining('https://r.jina.ai/http://query1.finance.yahoo.com/v8/finance/chart/2330.TW'),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
+    expect(fetchMock.mock.calls[0][0]).toContain('range=2y')
+    expect(fetchMock.mock.calls[0][0]).toContain('events=div%2Csplits')
     expect(quote.price).toBe(1_234.5)
   })
 })
