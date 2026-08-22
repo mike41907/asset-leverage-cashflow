@@ -508,3 +508,29 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
   .portfolio-trend-embedded .portfolio-trend-ranges { margin-top: 5px; padding-top: 6px; }
   .portfolio-trend-embedded .portfolio-trend-ranges button { min-height: 25px; padding-inline: 4px; }
 }
+
+/* V1.9.1 asset page typography and mobile hierarchy. */
+.asset-page-heading { margin-bottom: 18px; }
+.asset-heading-actions { width: 100%; justify-content: flex-end; }
+.asset-section-heading h2 { letter-spacing: -.045em; }
+.stock-section-heading .asset-dividend-summary { flex: 0 1 auto; }
+
+@media (max-width: 820px) {
+  .asset-page-heading { align-items: stretch; margin: 17px 0 13px; }
+  .asset-heading-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .asset-heading-actions .button { min-width: 0; min-height: 42px; padding-inline: 9px; font-size: 11px; white-space: nowrap; }
+  .asset-heading-actions .asset-refresh-button { grid-column: 1 / -1; }
+  .stock-section-heading { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .stock-section-heading > div:first-child { min-width: 0; }
+  .stock-section-heading > div:first-child h2 { font-size: 21px; line-height: 1.15; white-space: nowrap; }
+  .stock-section-heading .asset-dividend-summary { margin-top: 0; }
+}
+
+@media (max-width: 470px) {
+  .asset-heading-actions .button { font-size: 10px; }
+  .stock-section-heading > div:first-child h2 { font-size: 20px; }
+  .asset-dividend-summary { gap: 8px; }
+  .asset-dividend-summary > div { padding: 8px 7px; }
+  .asset-dividend-summary span { font-size: 8px; white-space: nowrap; }
+  .asset-dividend-summary strong { font-size: 11px; letter-spacing: -.055em; }
+}

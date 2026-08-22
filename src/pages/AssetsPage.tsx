@@ -868,14 +868,10 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
 
   return (
     <div className="page-container">
-      <section className="page-heading">
-        <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產資料庫</div>
-          <h1>你的資產，<span>一筆一筆記清楚。</span></h1>
-        </div>
+      <section className="page-heading asset-page-heading">
         <input ref={holdingsImportInputRef} className="visually-hidden" type="file" accept="image/*" multiple onChange={(event) => void handleHoldingsImportFiles(event)} />
         <div className="heading-actions asset-heading-actions">
-          {activeTab === 'stocks' && <button type="button" className="button button-secondary" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新行情與配息'}</button>}
+          {activeTab === 'stocks' && <button type="button" className="button button-secondary asset-refresh-button" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新行情與配息'}</button>}
           {activeTab === 'stocks' && <button type="button" className="button button-secondary" onClick={openHoldingsImportPicker}><ScanLine size={16} />從截圖匯入</button>}
           <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : activeTab === 'cash' ? openNewCash : activeTab === 'crypto' ? openNewCrypto : openNewRealEstate}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : activeTab === 'cash' ? '現金' : activeTab === 'crypto' ? '虛擬貨幣' : '房產'}</button>
         </div>
@@ -900,7 +896,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
 
       {activeTab === 'stocks' ? (
         <section className="card asset-table-card">
-          <div className="section-heading-row asset-section-heading">
+          <div className="section-heading-row asset-section-heading stock-section-heading">
             <div><div className="section-kicker">股票 / ETF</div><h2>持倉清單</h2></div>
             <div className="asset-dividend-summary"><div><span>持倉市值</span><strong>{formatTwd(stocks.reduce((total, stock) => total + calculateStockMarketValue(stock), 0), displayMode)}</strong></div><div><span>預估年配息</span><strong className="positive-text">{formatTwd(annualEstimatedDividendTwd, displayMode)}</strong></div><div><span>預估月配息</span><strong className="positive-text">{formatTwd(monthlyEstimatedDividendTwd, displayMode)}</strong></div></div>
           </div>
