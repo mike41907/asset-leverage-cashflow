@@ -44,7 +44,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     .slice(0, 4)
   const maintenanceValue = summary.maintenanceStatus === 'unavailable' ? '—' : formatPercent(summary.maintenanceRatioPercent)
   const maintenanceTitle = !hasLoans ? '尚未設定質押' : summary.maintenanceStatus === 'safe' ? '維持率安全' : summary.maintenanceStatus === 'warning' ? '維持率進入警戒' : summary.maintenanceStatus === 'danger' ? '維持率已低於追繳線' : '維持率暫時無法判讀'
-  const maintenanceDescription = !hasLoans ? '目前沒有借款資料可進行維持率判讀。' : `${maintenanceValue}；警戒線 ${formatPercent(state.settings.maintenanceWarningRatioPercent, 0)}。`
+  const maintenanceDescription = !hasLoans ? '尚未設定借款' : `警戒線 ${formatPercent(state.settings.maintenanceWarningRatioPercent, 0)}`
   const MaintenanceIcon = summary.maintenanceStatus === 'safe' ? ShieldCheck : CircleAlert
   const monthlyOutflowTwd = summary.monthlyExpenseTwd + summary.monthlyDebtServiceTwd
   const passiveCoveragePercent = calculatePassiveIncomeCoveragePercent(summary.monthlyEstimatedDividendTwd, monthlyOutflowTwd)
@@ -56,9 +56,8 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.7.0</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.7.1</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
-          <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
         <div className="heading-actions">
           <span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span>
@@ -158,7 +157,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
               <div className="section-heading-row">
                 <div>
                   <div className="section-kicker">資產配置</div>
-                  <h2>錢現在放在哪裡？</h2>
+                  <h2>資產配置</h2>
                 </div>
                 <span className="section-caption">TWD</span>
               </div>
@@ -198,7 +197,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                 <span className="mix-bar-real-estate" style={{ width: `${Math.min(100, realEstateShare)}%` }} />
                 <span className="mix-bar-crypto" style={{ width: `${Math.min(100, cryptoShare)}%` }} />
               </div>
-              <p className="card-footnote">{hasLoans ? `擔保品市值 ${formatTwd(summary.collateralValueTwd, displayMode)}；維持率會隨你輸入的現價更新。` : state.liabilities.length > 0 ? `一般負債 ${formatTwd(summary.totalLiabilitiesTwd, displayMode)}；房貸與固定付款會計入月現金流。` : '目前尚未建立借款或一般負債；可到質押模擬管理房貸與其他固定還款。'}</p>
+              <div className="mix-metric-row"><div><span>擔保品市值</span><strong>{formatTwd(summary.collateralValueTwd, displayMode)}</strong></div><div><span>總負債</span><strong>{formatTwd(summary.totalLiabilitiesTwd, displayMode)}</strong></div></div>
             </article>
 
             <article className="card health-card">
@@ -250,24 +249,20 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
               )}
             </article>
 
-            <article className="card next-step-card">
-              <div className="next-step-accent" />
-              <div className="section-kicker">本期檢查點</div>
-              <h2>先看現金流，再決定槓桿。</h2>
-              <p>首頁先把每月支出與股息覆蓋率放到前面；資產頁則可依市值、殖利率或年配息整理持倉。</p>
-              <div className="next-step-list">
-                <div><span className="check-icon">✓</span>每月支出 {formatTwd(monthlyOutflowTwd, displayMode)}</div>
-                <div><span className="check-icon">✓</span>股息覆蓋率 {passiveCoverageValue}</div>
-                <div><span className="check-icon">✓</span>{manualPriceCount > 0 ? `${manualPriceCount} 筆行情尚未自動更新` : '台股／美股行情已有公開來源時間'}</div>
-                <div><span className="check-icon">✓</span>配息資料可查看期間、來源與更新狀態</div>
+            <article className="card dashboard-focus-card">
+              <div className="section-heading-row">
+                <div><div className="section-kicker">重點數據</div><h2>今天先看這四項</h2></div>
+                <button type="button" className="text-button" onClick={() => onNavigate('assets')}>查看資產 <ChevronRight size={15} /></button>
               </div>
-              <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('assets')}>
-                整理我的持倉清單
-              </button>
+              <div className="dashboard-focus-grid">
+                <div><span>淨資產</span><strong>{formatTwd(summary.netWorthTwd, displayMode)}</strong><small>總資產 − 負債</small></div>
+                <div><span>預估年配息</span><strong className="positive-text">{formatTwd(summary.annualEstimatedDividendTwd, displayMode)}</strong><small>目前持股估算</small></div>
+                <div><span>擔保品市值</span><strong>{formatTwd(summary.collateralValueTwd, displayMode)}</strong><small>{hasLoans ? '質押計算基準' : '尚未設定質押'}</small></div>
+                <div><span>待更新行情</span><strong className={manualPriceCount > 0 ? 'warning-text' : 'positive-text'}>{manualPriceCount}</strong><small>台股／美股</small></div>
+              </div>
             </article>
           </section>
 
-          <div className="formula-note"><span className="formula-note-mark">Σ</span><span><strong>計算原則：</strong>淨資產永遠等於總資產減去總負債；借款不是收入，也不會直接增加淨資產。</span></div>
         </>
       )}
     </div>

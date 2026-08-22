@@ -81,7 +81,6 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
             <span className="status-dot" />
             <span>本機模式・離線可用</span>
           </div>
-          <p>資料只保存在此裝置的 IndexedDB，不上傳資產內容。</p>
         </div>
       </aside>
 

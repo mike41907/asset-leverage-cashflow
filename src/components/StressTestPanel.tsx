@@ -118,7 +118,6 @@ export function StressTestPanel({ stocks, loans, collaterals, settings, summary,
         <div>
           <div className="section-kicker">V0.4 / 市場壓力測試</div>
           <h2>先問最壞情境，<span>再決定槓桿上限。</span></h2>
-          <p>把股價下跌套入目前的股票、擔保品與借款，觀察維持率、總資產與淨資產會怎麼變。現在有 {stocks.length} 筆股票、{loans.length} 筆借款與 {collaterals.length} 筆擔保品資料。</p>
         </div>
         <span className="stress-local-pill"><ShieldCheck size={15} />只做試算，不改動資料</span>
       </section>
@@ -180,7 +179,6 @@ export function StressTestPanel({ stocks, loans, collaterals, settings, summary,
         <div className="stress-note"><ArrowDownRight size={15} /><span>{loans.length > 0 ? '反推以目前擔保品市值與剩餘借款本金估算；實際金融機構可能依個別股票折算率、集中度與契約條件判定。' : '尚未建立借款，因此沒有可反推的實際維持率線；先用上方跌幅觀察資產與淨資產變化。'}</span></div>
       </section>
 
-      <div className="formula-note"><span className="formula-note-mark">↓</span><span><strong>本頁計算原則：</strong>所有股票與已登錄擔保品按相同跌幅縮放；現金與借款不變，因此淨資產下滑金額等於股票市值下滑金額。</span></div>
     </div>
   )
 }

@@ -196,7 +196,6 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
         <div>
           <div className="section-kicker">V0.3 / 借款再投資試算</div>
           <h2>先看 Before / After，<span>再決定要不要放大。</span></h2>
-          <p>這是一個不會寫入實際借款的暫時方案。調整借款、利率與投入比例，立即比較資產、負債、槓桿與現金流的變化。</p>
         </div>
         <span className="simulation-local-pill"><ShieldCheck size={15} />純本機試算，不會改動實際資料</span>
       </section>
@@ -273,7 +272,6 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
         <div className="before-after-footnote"><CircleDollarSign size={15} /><span>淨資產在起始時點不會因借款增加；改變的是資產組成、負債、槓桿、負債比與每月現金流。</span></div>
       </section>
 
-      <div className="formula-note"><span className="formula-note-mark">Σ</span><span><strong>本頁計算原則：</strong>借款先增加現金資產與等額負債，再把指定比例轉成目標股票；若股價無法買出完整股數，零股差額會留在現金。</span></div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { BarChart3, Check, ChevronDown, CircleDollarSign, Edit3, Info, Plus, ShieldCheck, Target, Trash2 } from 'lucide-react'
+import { BarChart3, Check, ChevronDown, CircleDollarSign, Edit3, Plus, ShieldCheck, Target, Trash2 } from 'lucide-react'
 import type { DividendIncomeMode, DividendTarget, StockAsset } from '../domain/models'
 import { calculateDividendTarget, calculatePerShareDividendTarget, type PortfolioSummary } from '../domain/calculations'
 import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
@@ -194,16 +194,16 @@ export function PassiveIncomeTarget({ stocks, summary, targets, displayMode, onS
   return (
     <div className="passive-target-v06">
       <section className="card passive-target-intro-card">
-        <div><div className="section-kicker">被動收入目標 / V0.6</div><h2>先定義每月想要的錢，<span>再反推需要的資產。</span></h2><p>用殖利率或每股配息兩種方式估算；如果你要的是淨領金額，也能把每月借款成本一起納入。</p></div>
+        <div><div className="section-kicker">被動收入目標 / V0.6</div><h2>設定目標，反推所需資產。</h2></div>
         <span className="passive-target-local-pill"><ShieldCheck size={15} />只在本機試算</span>
       </section>
 
       <form className="passive-target-layout" onSubmit={(event) => void handleSubmit(event)}>
         <section className="card passive-target-controls-card">
-          <div className="section-heading-row passive-target-section-heading"><div><div className="section-kicker">目標設定</div><h2>把假設寫下來，結果才有比較基準。</h2></div><Target size={19} className="passive-target-icon" /></div>
+          <div className="section-heading-row passive-target-section-heading"><div><div className="section-kicker">目標設定</div><h2>每月目標</h2></div><Target size={19} className="passive-target-icon" /></div>
 
           <div className="passive-target-control-group">
-            <div className="passive-target-control-label"><span>先設定收入目標</span><small>平均每月想拿到的金額</small></div>
+            <div className="passive-target-control-label"><span>收入目標</span><small>每月金額</small></div>
             <div className="form-grid form-grid-two passive-target-form-grid">
               <label className="form-field"><span>目標名稱</span><input required value={draft.name} placeholder="例如 退休被動收入" onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
               <label className="form-field"><span>每月目標<small>NTD</small></span><input required min="0" step="1000" type="number" value={draft.monthlyTargetTwd || ''} placeholder="40,000" onChange={(event) => setDraft((current) => ({ ...current, monthlyTargetTwd: Number(event.target.value) }))} /></label>
@@ -216,13 +216,13 @@ export function PassiveIncomeTarget({ stocks, summary, targets, displayMode, onS
           </div>
 
           <div className="passive-target-control-group">
-            <div className="passive-target-control-label"><span>選擇計算標的</span><small>預設帶入 00878，也可以改選其他股票或自訂</small></div>
+            <div className="passive-target-control-label"><span>計算標的</span></div>
             {stocks.length > 0 && <label className="form-field"><span>股票／ETF</span><div className="select-wrap"><select value={draft.stockAssetId} onChange={(event) => selectStock(event.target.value)}><option value="">自訂股票／ETF</option>{stocks.map((stock) => <option value={stock.id} key={stock.id}>{stock.symbol} · {stock.name}</option>)}</select><ChevronDown className="select-chevron" size={16} aria-hidden="true" /></div></label>}
             {draft.stockAssetId && selectedStock ? <div className="passive-target-selected-asset"><span className="passive-target-asset-badge">{selectedStock.symbol.slice(0, 2)}</span><div><strong>{selectedStock.symbol} · {selectedStock.name}</strong><small>目前現價 {formatTwd(stockPriceTwd(selectedStock), displayMode)} · 預估殖利率 {formatPercent(selectedStock.estimatedYieldPercent)}</small></div><Check size={16} /></div> : <div className="form-grid form-grid-two passive-target-form-grid"><label className="form-field"><span>股票代號</span><input value={draft.symbol} placeholder="例如 00878" onChange={(event) => setDraft((current) => ({ ...current, symbol: event.target.value.toUpperCase() }))} /></label><label className="form-field"><span>股票名稱</span><input value={draft.assetName} placeholder="例如 高股息 ETF" onChange={(event) => setDraft((current) => ({ ...current, assetName: event.target.value }))} /></label></div>}
           </div>
 
           <div className="passive-target-control-group">
-            <div className="passive-target-control-label"><span>選擇估算方式</span><small>兩種模式都只使用你輸入的手動數值</small></div>
+            <div className="passive-target-control-label"><span>估算方式</span></div>
             <div className="passive-target-segmented" role="radiogroup" aria-label="股息估算方式">
               <button type="button" role="radio" aria-checked={draft.mode === 'yield'} className={draft.mode === 'yield' ? 'is-active' : ''} onClick={() => setDraft((current) => ({ ...current, mode: 'yield' }))}><BarChart3 size={15} />殖利率模式</button>
               <button type="button" role="radio" aria-checked={draft.mode === 'per-share'} className={draft.mode === 'per-share' ? 'is-active' : ''} onClick={() => setDraft((current) => ({ ...current, mode: 'per-share' }))}><CircleDollarSign size={15} />每股配息模式</button>
@@ -234,11 +234,10 @@ export function PassiveIncomeTarget({ stocks, summary, targets, displayMode, onS
           </div>
 
           <div className="passive-target-actions"><button type="submit" className="button button-primary"><Check size={15} />{editingTarget ? '更新目標' : '保存目標'}</button>{editingTarget && <button type="button" className="button button-ghost" onClick={resetDraft}><Plus size={15} />新增另一個目標</button>}</div>
-          <div className="passive-target-note"><Info size={15} /><span>本頁試算仍使用你輸入的價格；計算與目標只保存於瀏覽器 IndexedDB，不會把持倉資料送到雲端。</span></div>
         </section>
 
         <section className="card passive-target-result-card">
-          <div className="section-heading-row passive-target-section-heading"><div><div className="section-kicker">即時試算</div><h2>你的股息，需要長到哪裡？</h2></div><span className="passive-target-mode-badge">{targetModeLabel(draft.mode)}</span></div>
+          <div className="section-heading-row passive-target-section-heading"><div><div className="section-kicker">即時試算</div><h2>試算結果</h2></div><span className="passive-target-mode-badge">{targetModeLabel(draft.mode)}</span></div>
           <div className="passive-target-main-result"><span>預估需要本金</span><strong>{requiredPrincipal !== null ? formatTwd(requiredPrincipal, displayMode) : '等待完整輸入'}</strong><small>{draft.mode === 'yield' ? `以年殖利率 ${formatPercent(draft.annualYieldPercent)} 反推` : `每股年配息 ${formatNumber(perShareCalculation.annualDividendPerShareTwd, 2)} 元 × 需要股數`}</small></div>
           <div className="passive-target-result-grid">
             <div><span>每月毛收入需求</span><strong>{formatTwd(targetCalculation.monthlyGrossTargetTwd, displayMode)}</strong><small>{draft.incomeMode === 'net' ? `淨領 ${formatTwd(draft.monthlyTargetTwd, displayMode)} ＋成本` : '等於每月目標'}</small></div>
@@ -249,7 +248,6 @@ export function PassiveIncomeTarget({ stocks, summary, targets, displayMode, onS
           <div className="passive-target-current-card"><div><span>目前持倉月股息</span><strong className="positive-text">{formatTwd(summary.monthlyEstimatedDividendTwd, displayMode)}</strong></div><div><span>扣除成本後可領</span><strong className={currentComparableMonthlyIncome >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(currentComparableMonthlyIncome, displayMode)}</strong></div><div><span>距離目標</span><strong className={incomeGap >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(incomeGap, displayMode)}</strong></div></div>
           <div className="passive-target-progress-heading"><span>目前達成進度</span><strong>{formatPercent(progressPercent, 0)}</strong></div>
           <div className="passive-target-progress"><span style={{ width: `${progressPercent}%` }} /></div>
-          <div className="passive-target-formula"><span className="formula-note-mark">Σ</span><span><strong>試算邏輯：</strong>{draft.incomeMode === 'net' ? '每月目標＋借款成本＝每月毛收入需求；' : '每月目標＝每月毛收入需求；'}{draft.mode === 'yield' ? '年度目標 ÷ 年殖利率＝所需本金。' : 'Q1～Q4 每股配息相加後，年度目標 ÷ 每股年配息＝需要股數。'}</span></div>
         </section>
       </form>
 

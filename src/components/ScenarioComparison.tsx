@@ -305,7 +305,7 @@ export function ScenarioComparison({ stocks, simulations, settings, summary, dis
   return (
     <div className="scenario-v07">
       <section className="scenario-intro-card card">
-        <div><div className="section-kicker">多情境比較 / V0.7</div><h2>不要只看一個答案，<span>把方案放在同一張表。</span></h2><p>把不同借款金額、投入標的與擔保品配置保存下來；基準資料更新後，方案會重新計算資產、現金流與壓力後維持率。</p></div>
+        <div><div className="section-kicker">多情境比較 / V0.7</div><h2>方案比較</h2></div>
         <span className="scenario-local-pill"><ShieldCheck size={15} />只保存設定，不保存快照</span>
       </section>
 
@@ -335,7 +335,6 @@ export function ScenarioComparison({ stocks, simulations, settings, summary, dis
 
       {simulations.length > 0 && <section className="card scenario-saved-card"><div className="section-heading-row"><div><div className="section-kicker">本機已保存</div><h2>方案清單</h2></div><span className="section-caption">可套用、複製或刪除</span></div><div className="scenario-saved-list">{simulations.map((simulation) => { const result = compareSimulation(simulation, stocks, summary, settings); return <article className="scenario-saved-row" key={simulation.id}><div className="scenario-saved-main"><span className="scenario-saved-icon"><Target size={16} /></span><div><strong>{simulation.name}</strong><small>{simulation.investments[0]?.symbol ?? '不投入股票'} · 借款 {formatTwd(simulation.loanAmount, displayMode)} · {simulation.annualInterestRatePercent}%</small></div></div><div className="scenario-saved-metric"><span>投入比例</span><strong>{formatPercent(simulation.investments[0]?.allocationPercent ?? 0, 0)}</strong></div><div className="scenario-saved-metric"><span>壓力後 -20%</span><strong className={statusClass(result.stress20Maintenance.status)}>{ratioLabel(result.stress20Maintenance.ratioPercent)}</strong></div><div className="scenario-saved-actions"><button type="button" className="button button-ghost" onClick={() => handleApply(simulation)}><Edit3 size={14} />套用</button><button type="button" className="icon-button small" aria-label={`複製 ${simulation.name}`} onClick={() => handleCopy(simulation)}><Copy size={15} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${simulation.name}`} onClick={() => handleDelete(simulation)}><Trash2 size={15} /></button></div></article> })}</div></section>}
 
-      <div className="formula-note"><span className="formula-note-mark">Σ</span><span><strong>本頁計算原則：</strong>方案只保存借款與投資假設；比較時重新套用目前資產基準，借款會同時增加資產與負債，淨資產不會因借款本身增加。</span></div>
     </div>
   )
 }

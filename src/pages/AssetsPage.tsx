@@ -438,6 +438,8 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
   const filteredCash = cash.filter((item) => `${item.label} ${item.currency}`.toLowerCase().includes(search.toLowerCase()))
   const filteredCryptos = cryptos.filter((item) => `${item.symbol} ${item.name} ${item.platform}`.toLowerCase().includes(search.toLowerCase()))
   const filteredRealEstate = realEstate.filter((item) => `${item.name} ${realEstateTypeLabel(item.propertyType)}`.toLowerCase().includes(search.toLowerCase()))
+  const annualEstimatedDividendTwd = useMemo(() => stocks.reduce((total, stock) => total + calculateAnnualDividendTwd(stock), 0), [stocks])
+  const monthlyEstimatedDividendTwd = annualEstimatedDividendTwd / 12
 
   const openNewStock = () => {
     setEditingStock(null)
@@ -870,7 +872,6 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />資產資料庫</div>
           <h1>你的資產，<span>一筆一筆記清楚。</span></h1>
-        <p>新增或開啟資產頁會帶入公開行情、中文名稱與近 12 個月配息；查不到公開資料時仍可手動輸入。</p>
         </div>
         <input ref={holdingsImportInputRef} className="visually-hidden" type="file" accept="image/*" multiple onChange={(event) => void handleHoldingsImportFiles(event)} />
         <div className="heading-actions asset-heading-actions">
@@ -901,7 +902,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
         <section className="card asset-table-card">
           <div className="section-heading-row asset-section-heading">
             <div><div className="section-kicker">股票 / ETF</div><h2>持倉清單</h2></div>
-            <div className="asset-section-summary"><span>持倉市值</span><strong>{formatTwd(stocks.reduce((total, stock) => total + calculateStockMarketValue(stock), 0), displayMode)}</strong><small>公開行情＋手動備援</small></div>
+            <div className="asset-dividend-summary"><div><span>持倉市值</span><strong>{formatTwd(stocks.reduce((total, stock) => total + calculateStockMarketValue(stock), 0), displayMode)}</strong></div><div><span>預估年配息</span><strong className="positive-text">{formatTwd(annualEstimatedDividendTwd, displayMode)}</strong></div><div><span>預估月配息</span><strong className="positive-text">{formatTwd(monthlyEstimatedDividendTwd, displayMode)}</strong></div></div>
           </div>
           {quoteListNotice && <div className={`quote-list-notice quote-list-notice-${quoteListNotice.kind}`} role={quoteListNotice.kind === 'error' ? 'alert' : 'status'}><Info size={14} />{quoteListNotice.message}</div>}
           {filteredStocks.length === 0 ? (
@@ -930,7 +931,6 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
             </div>
           )}
           {filteredStocks.length > 0 && <div className="stock-mobile-list">{filteredStocks.map((stock) => <StockMobileCard key={stock.id} stock={stock} displayMode={displayMode} onEdit={() => openEditStock(stock)} onDelete={() => void handleDeleteStock(stock)} onDividendDetail={() => setDividendDetailStock(stock)} />)}</div>}
-          <div className="table-note stock-table-note"><Info size={15} /> 市值 = 持有股數 × 現價 × 匯率；美股匯率自動抓取 USD/TWD，行情與匯率可能延遲或暫時無法使用。</div>
         </section>
       ) : activeTab === 'cash' ? (
         <section className="card asset-table-card">
@@ -957,7 +957,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
         <section className="card asset-table-card">
           <div className="section-heading-row asset-section-heading">
             <div><div className="section-kicker">虛擬貨幣 / Crypto</div><h2>虛擬貨幣清單</h2></div>
-            <div className="asset-section-summary"><span>折合台幣</span><strong>{formatTwd(cryptos.reduce((total, crypto) => total + calculateCryptoMarketValue(crypto), 0), displayMode)}</strong><small>價格手動輸入＋美元匯率自動抓取</small></div>
+            <div className="asset-section-summary"><span>折合台幣</span><strong>{formatTwd(cryptos.reduce((total, crypto) => total + calculateCryptoMarketValue(crypto), 0), displayMode)}</strong><small>USD 匯率自動更新</small></div>
           </div>
           {filteredCryptos.length === 0 ? (
             <EmptyState icon={Coins} title={search ? '找不到符合的虛擬貨幣' : '還沒有虛擬貨幣資產'} description={search ? '換一個代號、名稱或平台試試。' : '加入 BTC、ETH 或其他代幣，資產總額會同步更新。'} actionLabel={search ? undefined : '新增虛擬貨幣'} onAction={search ? undefined : openNewCrypto} />
@@ -981,7 +981,6 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
               <button type="button" className="add-asset-dashed" onClick={openNewCrypto}><Plus size={20} /><span>新增一筆虛擬貨幣</span></button>
             </div>
           )}
-          <div className="table-note"><Info size={15} /> 虛擬貨幣市值 = 持有數量 × 目前價格 × 匯率；價格目前由你輸入，USD/TWD 匯率會自動更新，且不納入股票質押擔保品。</div>
         </section>
       ) : (
         <section className="card asset-table-card">
@@ -1003,7 +1002,6 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
               <button type="button" className="add-asset-dashed" onClick={openNewRealEstate}><Plus size={20} /><span>新增一筆房產</span></button>
             </div>
           )}
-          <div className="table-note"><Info size={15} /> 房產以你輸入的目前估值計入總資產；房貸剩餘本金請到「一般負債／房貸」管理。</div>
         </section>
       )}
 

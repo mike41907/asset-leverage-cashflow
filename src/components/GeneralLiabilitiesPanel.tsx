@@ -178,7 +178,6 @@ export function GeneralLiabilitiesPanel({ liabilities, realEstate, displayMode, 
         })}
       </div>}
 
-      <div className="formula-note"><span className="formula-note-mark">Σ</span><span><strong>計算原則：</strong>一般負債的剩餘本金會計入總負債；每月付款會計入月支出。若已建立房貸資料，現金流頁不需再重複新增同一筆房貸。</span></div>
       {modalOpen && <LiabilityModal liability={editing} realEstate={realEstate} onClose={() => setModalOpen(false)} onSave={onSave} />}
     </div>
   )

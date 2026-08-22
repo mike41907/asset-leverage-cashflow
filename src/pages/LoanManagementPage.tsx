@@ -272,7 +272,6 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
         <div>
           <div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'simulation' ? '投資模擬 / V0.3' : activeView === 'stress' ? '市場壓力測試 / V0.4' : activeView === 'scenarios' ? '多情境比較 / V0.7' : activeView === 'liabilities' ? '家庭負債 / V1.2' : '質押風控 / V0.2'}</div>
           <h1>{activeView === 'simulation' ? <>借款先試算，<span>再決定要不要放大。</span></> : activeView === 'stress' ? <>先問最壞情境，<span>再決定槓桿上限。</span></> : activeView === 'scenarios' ? <>不要只看一個答案，<span>把方案放在同一張表。</span></> : activeView === 'liabilities' ? <>把家庭負債，<span>放進每月現金流。</span></> : <>把槓桿，<span>放在可控範圍內。</span></>}</h1>
-          <p>{activeView === 'simulation' ? '把質押借款投入股票，先比較操作前後的資產、負債、槓桿與現金流。' : activeView === 'stress' ? '把市場跌幅套入目前資產，先看懂維持率與淨資產的風險距離。' : activeView === 'scenarios' ? '保存不同借款與投資配置，並比較年度股息、每月現金流與壓力後維持率。' : activeView === 'liabilities' ? '記錄房貸、車貸與其他固定還款，讓淨資產與月支出更接近家庭現況。' : '記錄剩餘借款本金、利息與擔保品，先看懂維持率，再決定是否擴大投資。'}</p>
         </div>
         <div className="heading-actions">
           <span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span>
@@ -360,8 +359,6 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
           })}
         </div>
       )}
-
-      <div className="formula-note"><span className="formula-note-mark">↗</span><span><strong>本頁的判讀邏輯：</strong>維持率只反映你輸入的擔保品市值與剩餘借款本金，不代表任何金融機構的正式授信或追繳通知。</span></div>
 
       {modalOpen && <Modal title={editingLoan ? '編輯質押借款' : '新增質押借款'} description="原始借款本金是最初借款額；剩餘借款本金是目前尚未償還、現在還欠銀行的金額。資料只會儲存在這台裝置。" onClose={() => setModalOpen(false)}>
         <form className="asset-form" onSubmit={(event) => void handleSubmit(event)}>
