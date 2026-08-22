@@ -109,7 +109,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         </div>
       </section>
 
-       <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V1.7.1</span></footer>
+       <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V1.7.2</span></footer>
     </div>
   )
 }

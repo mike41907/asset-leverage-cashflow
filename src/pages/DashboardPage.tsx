@@ -54,18 +54,14 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
   return (
     <div className="page-container">
-      <section className="page-heading dashboard-heading">
-        <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.7.1</div>
-          <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
-        </div>
+      <div className="dashboard-toolbar">
         <div className="heading-actions">
           <span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span>
           <button type="button" className="button button-primary" onClick={() => onNavigate('assets')}>
             <Plus size={17} />新增資產
           </button>
         </div>
-      </section>
+      </div>
 
       {!hasAssets ? (
         <section className="card empty-card">
