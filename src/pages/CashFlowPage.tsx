@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { ArrowDownRight, ArrowUpRight, Check, CircleDollarSign, Edit3, Info, Plus, ReceiptText, ShieldCheck, Trash2, X } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Check, CircleDollarSign, Edit3, Info, Plus, ReceiptText, Trash2, X } from 'lucide-react'
 import type { CashFlowFrequency, CashFlowItem, CashFlowType, DividendTarget, Liability, Loan, StockAsset } from '../domain/models'
 import { calculateCashFlowItemMonthlyAmount, calculateCashFlowMonthlyAmount, calculateMonthlyCashFlowBreakdown, type PortfolioSummary } from '../domain/calculations'
 import { formatCurrencyWithSign, formatTwd } from '../shared/formatters'
@@ -174,9 +174,8 @@ export function CashFlowPage({ items, loans, liabilities, stocks, targets, summa
 
   return (
     <div className="page-container cashflow-page">
-      <section className="page-heading">
-        <div><div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'cashflow' ? '現金流規劃 / V0.5' : '被動收入目標 / V0.6'}</div><h1>{activeView === 'cashflow' ? <>把流入流出，<span>放在同一張月表。</span></> : <>先定義每月想要的錢，<span>再反推需要的資產。</span></>}</h1></div>
-        <div className="heading-actions"><span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span><div className="segmented-control cashflow-view-switch" role="tablist" aria-label="現金流功能"><button type="button" role="tab" aria-selected={activeView === 'cashflow'} className={activeView === 'cashflow' ? 'is-active' : ''} onClick={() => setActiveView('cashflow')}>月現金流</button><button type="button" role="tab" aria-selected={activeView === 'target'} className={activeView === 'target' ? 'is-active' : ''} onClick={() => setActiveView('target')}>被動收入目標</button></div>{activeView === 'cashflow' && <button type="button" className="button button-primary" onClick={() => openNew('income')}><Plus size={17} />新增現金流</button>}</div>
+      <section className="page-heading cashflow-toolbar">
+        <div className="heading-actions"><div className="segmented-control cashflow-view-switch" role="tablist" aria-label="現金流功能"><button type="button" role="tab" aria-selected={activeView === 'cashflow'} className={activeView === 'cashflow' ? 'is-active' : ''} onClick={() => setActiveView('cashflow')}>月現金流</button><button type="button" role="tab" aria-selected={activeView === 'target'} className={activeView === 'target' ? 'is-active' : ''} onClick={() => setActiveView('target')}>被動收入目標</button></div>{activeView === 'cashflow' && <button type="button" className="button button-primary" onClick={() => openNew('income')}><Plus size={17} />新增現金流</button>}</div>
       </section>
 
       {activeView === 'target' ? <PassiveIncomeTarget stocks={stocks} summary={summary} targets={targets} displayMode={displayMode} onSaveTarget={onSaveTarget} onDeleteTarget={onDeleteTarget} /> : <>
