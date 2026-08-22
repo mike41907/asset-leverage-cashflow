@@ -8,7 +8,6 @@ import {
   CircleDollarSign,
   Coins,
   Landmark,
-  Plus,
   ReceiptText,
   ShieldCheck,
   WalletCards,
@@ -53,16 +52,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
   const manualPriceCount = state.stocks.filter((stock) => stock.market !== 'OTHER' && stock.currentPriceSource !== 'yahoo-public').length
 
   return (
-    <div className="page-container">
-      <div className="dashboard-toolbar">
-        <div className="heading-actions">
-          <span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span>
-          <button type="button" className="button button-primary" onClick={() => onNavigate('assets')}>
-            <Plus size={17} />新增資產
-          </button>
-        </div>
-      </div>
-
+    <div className="page-container dashboard-page">
       {!hasAssets ? (
         <section className="card empty-card">
           <EmptyState
