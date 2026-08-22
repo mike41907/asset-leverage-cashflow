@@ -256,6 +256,49 @@ async function fetchStockQuoteResult(symbol: string, market: Market): Promise<St
   return { quote, exchangeRate }
 }
 
+interface QuoteBatchResult {
+  updatedStocks: StockAsset[]
+  failedStocks: Array<{ symbol: string; error: string }>
+  noDividendSymbols: string[]
+}
+
+async function refreshStockQuotesSequentially(stocks: StockAsset[], onProgress: (completed: number) => void): Promise<QuoteBatchResult> {
+  const exchangeRate = stocks.some((stock) => stock.market === 'US')
+    ? await fetchUsdTwdExchangeRate().catch(() => null)
+    : null
+  const updatedStocks: StockAsset[] = []
+  const failedStocks: Array<{ symbol: string; error: string }> = []
+  const noDividendSymbols: string[] = []
+
+  for (const [index, stock] of stocks.entries()) {
+    try {
+      const quote = await fetchStockQuote(stock.symbol, stock.market)
+      updatedStocks.push(applyQuoteToStock(stock, quote, exchangeRate))
+      if (!quote.dividend) noDividendSymbols.push(stock.symbol)
+    } catch (error) {
+      failedStocks.push({ symbol: stock.symbol, error: getQuoteErrorMessage(error) })
+    } finally {
+      onProgress(index + 1)
+    }
+  }
+
+  return { updatedStocks, failedStocks, noDividendSymbols }
+}
+
+function formatQuoteFailureSummary(failedStocks: Array<{ symbol: string; error: string }>): string {
+  if (failedStocks.length === 0) return ''
+  const rateLimited = failedStocks.filter((item) => item.error.includes('HTTP 429'))
+  const otherFailures = failedStocks.filter((item) => !item.error.includes('HTTP 429'))
+  const formatSymbols = (items: Array<{ symbol: string }>) => {
+    const symbols = items.map((item) => item.symbol).slice(0, 6).join('、')
+    return items.length > 6 ? `${symbols} 等` : symbols
+  }
+  const messages: string[] = []
+  if (rateLimited.length > 0) messages.push(`${rateLimited.length} 筆被公開行情服務限流（HTTP 429）：${formatSymbols(rateLimited)}。請等待約 1 分鐘後再更新。`)
+  if (otherFailures.length > 0) messages.push(`${otherFailures.length} 筆查詢失敗：${formatSymbols(otherFailures)}。${otherFailures[0].error}`)
+  return messages.join(' ')
+}
+
 function applyQuoteToStock(stock: StockAsset, quote: StockQuote, exchangeRate: UsdTwdExchangeRate | null): StockAsset {
   return {
     ...stock,
@@ -386,6 +429,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
   const quoteRequestId = useRef(0)
   const dividendRefreshAttempted = useRef(new Set<string>())
   const dividendRefreshInFlight = useRef<Promise<void> | null>(null)
+  const quoteRefreshRunning = useRef(false)
   const isMounted = useRef(false)
 
   useEffect(() => {
@@ -396,7 +440,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
   }, [])
 
   useEffect(() => {
-    if (dividendRefreshInFlight.current) return
+    if (dividendRefreshInFlight.current || quoteRefreshRunning.current) return
     const candidates = stocks.filter(needsAutomaticDividendRefresh).filter((stock) => {
       const key = `${stock.id}:${stock.market}:${stock.symbol.trim().toUpperCase()}`
       if (dividendRefreshAttempted.current.has(key)) return false
@@ -406,30 +450,30 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
     if (candidates.length === 0) return
 
     setQuoteListNotice({ kind: 'success', message: `正在自動更新 ${candidates.map((stock) => stock.symbol).join('、')} 的行情、配息與殖利率…` })
+    setIsRefreshingAll(true)
+    setRefreshProgress({ completed: 0, total: candidates.length })
+    quoteRefreshRunning.current = true
     const run = (async () => {
       try {
-        const exchangeRatePromise = candidates.some((stock) => stock.market === 'US')
-          ? fetchUsdTwdExchangeRate().catch(() => null)
-          : Promise.resolve(null)
-        const results = await Promise.allSettled(candidates.map(async (stock) => ({
-          stock,
-          quote: await fetchStockQuote(stock.symbol, stock.market),
-        })))
-        const exchangeRate = await exchangeRatePromise
-        const updatedStocks = results.flatMap((result) => result.status === 'fulfilled' && result.value.quote.dividend
-          ? [applyQuoteToStock(result.value.stock, result.value.quote, exchangeRate)]
-          : [])
-        const failedSymbols = results.flatMap((result, index) => result.status === 'rejected' ? [candidates[index].symbol] : [])
-        const noDividendSymbols = results.flatMap((result) => result.status === 'fulfilled' && !result.value.quote.dividend ? [result.value.stock.symbol] : [])
+        const { updatedStocks, failedStocks, noDividendSymbols } = await refreshStockQuotesSequentially(candidates, (completed) => {
+          setRefreshProgress((current) => current ? { ...current, completed } : current)
+        })
         if (!isMounted.current) return
         if (updatedStocks.length > 0) await onSaveStocks(updatedStocks)
         if (!isMounted.current) return
         const updatedMessage = updatedStocks.length > 0 ? `已自動補抓 ${updatedStocks.length} 筆行情、年配息與年化殖利率。` : '行情已查詢，但公開資料尚未提供可計算的配息事件。'
-        const failures = failedSymbols.length > 0 ? `失敗：${failedSymbols.join('、')}。` : ''
+        const failures = formatQuoteFailureSummary(failedStocks)
         const missing = noDividendSymbols.length > 0 ? `無配息事件：${noDividendSymbols.join('、')}，可手動輸入殖利率。` : ''
-        setQuoteListNotice({ kind: failedSymbols.length > 0 ? 'error' : 'success', message: [updatedMessage, failures, missing].filter(Boolean).join(' ') })
+        setQuoteListNotice({ kind: failedStocks.length > 0 ? 'error' : 'success', message: [updatedMessage, failures, missing].filter(Boolean).join(' ') })
       } catch (error) {
         if (isMounted.current) setQuoteListNotice({ kind: 'error', message: `自動補抓配息失敗：${getQuoteErrorMessage(error)}` })
+      }
+      finally {
+        if (isMounted.current) {
+          setIsRefreshingAll(false)
+          setRefreshProgress(null)
+        }
+        quoteRefreshRunning.current = false
       }
     })()
     dividendRefreshInFlight.current = run
@@ -522,20 +566,19 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
     setHoldingsImportMessage(`正在查詢 ${selectedCandidates.length} 筆最新行情，查不到的標的仍會先加入本機清單…`)
     try {
       const quoteCandidates = selectedCandidates
-      const usdTwdExchangeRatePromise = selectedCandidates.some((candidate) => candidate.market === 'US')
-        ? fetchUsdTwdExchangeRate().catch(() => null)
-        : Promise.resolve(null)
-      const quoteResults = await Promise.allSettled(quoteCandidates.map(async (candidate) => ({
-        id: candidate.id,
-        quote: await fetchStockQuote(candidate.symbol, candidate.market),
-      })))
+      const usdTwdExchangeRate = selectedCandidates.some((candidate) => candidate.market === 'US')
+        ? await fetchUsdTwdExchangeRate().catch(() => null)
+        : null
       const quoteByCandidateId = new Map<string, StockQuote>()
       const quoteFailures: string[] = []
-      quoteResults.forEach((result, index) => {
-        if (result.status === 'fulfilled') quoteByCandidateId.set(result.value.id, result.value.quote)
-        else quoteFailures.push(quoteCandidates[index].symbol.trim().toUpperCase())
-      })
-      const usdTwdExchangeRate = await usdTwdExchangeRatePromise
+      for (const [index, candidate] of quoteCandidates.entries()) {
+        setHoldingsImportMessage(`正在查詢第 ${index + 1}/${quoteCandidates.length} 筆最新行情，查不到的標的仍會先加入本機清單…`)
+        try {
+          quoteByCandidateId.set(candidate.id, await fetchStockQuote(candidate.symbol, candidate.market))
+        } catch {
+          quoteFailures.push(candidate.symbol.trim().toUpperCase())
+        }
+      }
       const time = new Date().toISOString()
       const importedStocks: StockAsset[] = selectedCandidates.map((candidate) => {
         const symbol = candidate.symbol.trim().toUpperCase()
@@ -834,6 +877,10 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
   }
 
   const handleRefreshAllStocks = async () => {
+    if (quoteRefreshRunning.current) {
+      setQuoteListNotice({ kind: 'success', message: '目前已有行情更新作業進行中，請等待完成。' })
+      return
+    }
     const refreshableStocks = stocks.filter((stock) => stock.market !== 'OTHER')
     if (refreshableStocks.length === 0) {
       setQuoteListNotice({ kind: 'error', message: '目前沒有可自動更新的台股或美股；其他市場請手動輸入價格。' })
@@ -843,35 +890,25 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
     setIsRefreshingAll(true)
     setRefreshProgress({ completed: 0, total: refreshableStocks.length })
     setQuoteListNotice(null)
+    quoteRefreshRunning.current = true
     try {
-      const usdTwdExchangeRatePromise: Promise<UsdTwdExchangeRate | null> = refreshableStocks.some((stock) => stock.market === 'US')
-        ? fetchUsdTwdExchangeRate()
-        : Promise.resolve(null)
-      const results = await Promise.allSettled(refreshableStocks.map(async (stock) => {
-        try {
-          const [quote, exchangeRate] = await Promise.all([
-            fetchStockQuote(stock.symbol, stock.market),
-            stock.market === 'US' ? usdTwdExchangeRatePromise : Promise.resolve(null),
-          ])
-          return applyQuoteToStock(stock, quote, exchangeRate)
-        } finally {
-          setRefreshProgress((current) => current ? { ...current, completed: Math.min(current.total, current.completed + 1) } : current)
-        }
-      }))
-      const updatedStocks = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
-      const failedStocks = results.flatMap((result, index) => result.status === 'rejected' ? [{ symbol: refreshableStocks[index].symbol, error: getQuoteErrorMessage(result.reason) }] : [])
+      const { updatedStocks, failedStocks, noDividendSymbols } = await refreshStockQuotesSequentially(refreshableStocks, (completed) => {
+        setRefreshProgress((current) => current ? { ...current, completed } : current)
+      })
       if (updatedStocks.length > 0) await onSaveStocks(updatedStocks)
 
       const skippedOtherMarket = stocks.length - refreshableStocks.length
       const summary = `已更新 ${updatedStocks.length}/${refreshableStocks.length} 筆行情、配息與殖利率。`
-      const failures = failedStocks.length > 0 ? `失敗：${failedStocks.map((item) => `${item.symbol}（${item.error}）`).join('、')}` : ''
+      const failures = formatQuoteFailureSummary(failedStocks)
+      const missing = noDividendSymbols.length > 0 ? `尚無可計算配息：${noDividendSymbols.slice(0, 6).join('、')}${noDividendSymbols.length > 6 ? ' 等' : ''}。` : ''
       const skipped = skippedOtherMarket > 0 ? `另有 ${skippedOtherMarket} 筆其他市場未更新。` : ''
-      setQuoteListNotice({ kind: failedStocks.length > 0 ? 'error' : 'success', message: [summary, failures, skipped].filter(Boolean).join(' ') })
+      setQuoteListNotice({ kind: failedStocks.length > 0 ? 'error' : 'success', message: [summary, failures, missing, skipped].filter(Boolean).join(' ') })
     } catch (error) {
       setQuoteListNotice({ kind: 'error', message: getQuoteErrorMessage(error) })
     } finally {
       setIsRefreshingAll(false)
       setRefreshProgress(null)
+      quoteRefreshRunning.current = false
     }
   }
 

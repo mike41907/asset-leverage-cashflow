@@ -164,7 +164,7 @@ export default function App() {
         ...stocks.filter((stock) => !current.stocks.some((existing) => existing.id === stock.id)),
       ],
     } : current)
-  }, '股票行情／持倉資料已更新。')
+  }, `已儲存 ${stocks.length} 筆股票行情／持倉資料。`)
 
   const handleDeleteStock = (id: string) => runAction(async () => {
     await deleteStock(id)

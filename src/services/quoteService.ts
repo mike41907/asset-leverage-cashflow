@@ -9,6 +9,11 @@ const JINA_READER_BASE_URL = 'https://r.jina.ai/'
 const YAHOO_CHART_QUERY = '?interval=1d%26range=2y%26includePrePost=false%26events=div%2Csplits'
 const REQUEST_TIMEOUT_MS = 10_000
 const CHINESE_NAME_TIMEOUT_MS = 15_000
+const PUBLIC_QUOTE_REQUEST_INTERVAL_MS = 750
+const RATE_LIMIT_RETRY_DELAYS_MS = [1_500, 3_000]
+
+let publicQuoteRequestQueue = Promise.resolve()
+let lastPublicQuoteRequestAt = 0
 
 export interface StockDividendQuote {
   annualDividendPerShare: number
@@ -258,6 +263,24 @@ function createTaiwanNameProxyUrl(yahooSymbol: string): string {
   return `${JINA_READER_BASE_URL}${TAIWAN_YAHOO_QUOTE_BASE_URL}/${yahooSymbol}`
 }
 
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds))
+}
+
+function enqueuePublicQuoteRequest<T>(request: () => Promise<T>): Promise<T> {
+  const queuedRequest = publicQuoteRequestQueue.then(async () => {
+    const elapsed = Date.now() - lastPublicQuoteRequestAt
+    if (elapsed < PUBLIC_QUOTE_REQUEST_INTERVAL_MS) await wait(PUBLIC_QUOTE_REQUEST_INTERVAL_MS - elapsed)
+    try {
+      return await request()
+    } finally {
+      lastPublicQuoteRequestAt = Date.now()
+    }
+  })
+  publicQuoteRequestQueue = queuedRequest.then(() => undefined, () => undefined)
+  return queuedRequest
+}
+
 async function fetchTaiwanStockName(yahooSymbol: string, requestedSymbol: string): Promise<string | null> {
   const controller = new AbortController()
   const timeout = globalThis.setTimeout(() => controller.abort(), CHINESE_NAME_TIMEOUT_MS)
@@ -276,28 +299,40 @@ async function fetchTaiwanStockName(yahooSymbol: string, requestedSymbol: string
 }
 
 async function fetchYahooChartQuote(yahooSymbol: string, requestedSymbol: string, market: Market, fetchedAt: string): Promise<StockQuote> {
-  const controller = new AbortController()
-  const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  return enqueuePublicQuoteRequest(async () => {
+    for (let attempt = 0; attempt <= RATE_LIMIT_RETRY_DELAYS_MS.length; attempt += 1) {
+      const controller = new AbortController()
+      const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
-  try {
-    const response = await fetch(createProxyUrl(yahooSymbol), {
-      headers: { Accept: 'text/plain, application/json' },
-      signal: controller.signal,
-    })
-    if (!response.ok) throw new Error(`行情服務暫時無法使用（HTTP ${response.status}）。`)
-    const quote = parseYahooChartText(await response.text(), requestedSymbol, market, fetchedAt)
-    if (market === 'TW' && !hasChineseName(quote.name)) {
-      const chineseName = await fetchTaiwanStockName(quote.yahooSymbol, quote.symbol)
-      if (chineseName) quote.name = chineseName
+      try {
+        const response = await fetch(createProxyUrl(yahooSymbol), {
+          headers: { Accept: 'text/plain, application/json' },
+          signal: controller.signal,
+        })
+        if (response.status === 429) {
+          if (attempt < RATE_LIMIT_RETRY_DELAYS_MS.length) {
+            await wait(RATE_LIMIT_RETRY_DELAYS_MS[attempt])
+            continue
+          }
+          throw new Error('行情服務目前達到請求上限（HTTP 429），請稍後再更新。')
+        }
+        if (!response.ok) throw new Error(`行情服務暫時無法使用（HTTP ${response.status}）。`)
+        const quote = parseYahooChartText(await response.text(), requestedSymbol, market, fetchedAt)
+        if (market === 'TW' && !hasChineseName(quote.name)) {
+          const chineseName = await fetchTaiwanStockName(quote.yahooSymbol, quote.symbol)
+          if (chineseName) quote.name = chineseName
+        }
+        return quote
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') throw new Error('行情查詢逾時，請稍後再試或手動輸入。')
+        if (error instanceof TypeError) throw new Error('目前無法連線到公開行情，請檢查網路或手動輸入。')
+        throw error
+      } finally {
+        globalThis.clearTimeout(timeout)
+      }
     }
-    return quote
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('行情查詢逾時，請稍後再試或手動輸入。')
-    if (error instanceof TypeError) throw new Error('目前無法連線到公開行情，請檢查網路或手動輸入。')
-    throw error
-  } finally {
-    globalThis.clearTimeout(timeout)
-  }
+    throw new Error('公開行情查詢失敗，請稍後再試。')
+  })
 }
 
 export async function fetchUsdTwdExchangeRate(): Promise<UsdTwdExchangeRate> {
