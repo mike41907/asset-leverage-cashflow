@@ -12,6 +12,7 @@ import { formatCurrencyWithSign, formatPercent } from '../shared/formatters'
 interface PortfolioTrendCardProps {
   snapshots: readonly PortfolioSnapshot[]
   displayMode: NumberDisplayMode
+  embedded?: boolean
 }
 
 interface ChartPoint {
@@ -25,7 +26,7 @@ const CHART_HEIGHT = 250
 const CHART_PADDING_X = 10
 const CHART_PADDING_Y = 18
 
-export function PortfolioTrendCard({ snapshots, displayMode }: PortfolioTrendCardProps) {
+export function PortfolioTrendCard({ snapshots, displayMode, embedded = false }: PortfolioTrendCardProps) {
   const [selectedRange, setSelectedRange] = useState<PortfolioTrendRangeDays>(365)
   const selectedSnapshots = useMemo(
     () => selectPortfolioTrendSnapshots(snapshots, selectedRange),
@@ -66,7 +67,7 @@ export function PortfolioTrendCard({ snapshots, displayMode }: PortfolioTrendCar
   const ChangeIcon = trendChange && trendChange.changeTwd < 0 ? TrendingDown : TrendingUp
 
   return (
-    <section className="card portfolio-trend-card">
+    <section className={`${embedded ? 'portfolio-trend-card portfolio-trend-embedded' : 'card portfolio-trend-card'}`}>
       <div className="portfolio-trend-header">
         <div>
           <div className="section-kicker">資產趨勢</div>

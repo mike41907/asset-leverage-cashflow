@@ -81,6 +81,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                   <span>房產 {formatTwd(summary.realEstateValueTwd, displayMode)}</span>
                 </div>
               </div>
+              <PortfolioTrendCard snapshots={state.portfolioSnapshots} displayMode={displayMode} embedded />
             </div>
 
             <div className="metric-grid">
@@ -129,8 +130,6 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
               />
             </div>
           </section>
-
-          <PortfolioTrendCard snapshots={state.portfolioSnapshots} displayMode={displayMode} />
 
           <section className="dashboard-grid dashboard-grid-main">
             <article className="card portfolio-mix-card">

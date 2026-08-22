@@ -469,3 +469,42 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
   .portfolio-trend-ranges { gap: 3px; }
   .portfolio-trend-ranges button { padding-inline: 4px; font-size: 9px; }
 }
+
+/* V1.9.0 compact dashboard trend card. */
+.primary-net-worth-card { min-height: 0; }
+.primary-card-content { padding: 24px 29px 0; }
+.primary-card-value { margin-top: 22px; }
+.primary-card-meta { margin-top: 13px; flex-wrap: wrap; }
+.portfolio-trend-embedded { margin: 17px 0 0; padding: 14px 29px 14px; border-top: 1px solid rgba(255,255,255,.16); border-radius: 0; background: transparent; box-shadow: none; }
+.portfolio-trend-embedded .section-kicker { margin-bottom: 4px; color: rgba(255,255,255,.62); }
+.portfolio-trend-embedded .portfolio-trend-header h2 { margin-top: 0; color: #fff; font-size: 14px; }
+.portfolio-trend-embedded .portfolio-trend-change { gap: 5px; }
+.portfolio-trend-embedded .portfolio-trend-change strong { color: #fff; font-size: 16px; }
+.portfolio-trend-embedded .portfolio-trend-change span { margin-top: 2px; color: rgba(255,255,255,.62); font-size: 9px; }
+.portfolio-trend-embedded .portfolio-trend-chart { min-height: 92px; margin-top: 8px; }
+.portfolio-trend-embedded .portfolio-trend-chart svg { height: 92px; }
+.portfolio-trend-embedded .portfolio-trend-grid-line { stroke: rgba(255,255,255,.16); }
+.portfolio-trend-embedded .portfolio-trend-area { fill: rgba(170,239,212,.16); }
+.portfolio-trend-embedded .portfolio-trend-line { stroke: #b8f4d8; stroke-width: 2.5; }
+.portfolio-trend-embedded .portfolio-trend-point { fill: #0e7490; stroke: #fff; stroke-width: 2.5; }
+.portfolio-trend-embedded .portfolio-trend-chart.is-empty { min-height: 92px; background: rgba(255,255,255,.08); }
+.portfolio-trend-embedded .portfolio-trend-empty { padding: 12px; color: rgba(255,255,255,.68); }
+.portfolio-trend-embedded .portfolio-trend-empty svg { color: #b8f4d8; }
+.portfolio-trend-embedded .portfolio-trend-empty strong { color: #fff; }
+.portfolio-trend-embedded .portfolio-trend-empty span { font-size: 9px; }
+.portfolio-trend-embedded .portfolio-trend-note { margin-top: -2px; color: rgba(255,255,255,.56); }
+.portfolio-trend-embedded .portfolio-trend-ranges { gap: 4px; margin-top: 6px; padding-top: 7px; border-top-color: rgba(255,255,255,.16); }
+.portfolio-trend-embedded .portfolio-trend-ranges button { min-height: 27px; padding: 4px 6px; color: rgba(255,255,255,.64); font-size: 9px; }
+.portfolio-trend-embedded .portfolio-trend-ranges button:hover,
+.portfolio-trend-embedded .portfolio-trend-ranges button.is-active { color: #fff; background: rgba(255,255,255,.14); }
+
+@media (max-width: 820px) {
+  .primary-card-content { padding: 20px 20px 0; }
+  .primary-card-value { margin-top: 17px; font-size: 33px; }
+  .primary-card-meta { gap: 7px; margin-top: 10px; font-size: 10px; }
+  .portfolio-trend-embedded { margin-top: 13px; padding: 12px 20px 13px; }
+  .portfolio-trend-embedded .portfolio-trend-chart { min-height: 80px; margin-top: 6px; }
+  .portfolio-trend-embedded .portfolio-trend-chart svg { height: 80px; }
+  .portfolio-trend-embedded .portfolio-trend-ranges { margin-top: 5px; padding-top: 6px; }
+  .portfolio-trend-embedded .portfolio-trend-ranges button { min-height: 25px; padding-inline: 4px; }
+}
