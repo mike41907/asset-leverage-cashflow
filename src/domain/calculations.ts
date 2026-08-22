@@ -235,6 +235,12 @@ export function calculateAnnualDividendTwd(stock: StockAsset): number {
   return calculateStockMarketValue(stock) * (finitePositive(stock.estimatedYieldPercent) / 100)
 }
 
+export function calculatePassiveIncomeCoveragePercent(monthlyDividendTwd: number, monthlyOutflowTwd: number): number | null {
+  const outflow = finitePositive(monthlyOutflowTwd)
+  if (outflow <= 0) return null
+  return (finitePositive(monthlyDividendTwd) / outflow) * 100
+}
+
 export function calculateTotalAssets(
   stocks: readonly StockAsset[],
   cash: readonly CashAsset[],

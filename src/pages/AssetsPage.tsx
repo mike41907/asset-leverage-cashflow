@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   Banknote,
   Check,
   ChevronDown,
+  CircleDollarSign,
   Coins,
   Edit3,
   House,
@@ -16,7 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import type { CashAsset, Currency, CryptoAsset, Market, RealEstateAsset, RealEstateType, StockAsset, StockDividendPeriod } from '../domain/models'
-import { calculateCashValue, calculateCryptoMarketValue, calculateCryptoUnrealizedGain, calculateCryptoUnrealizedGainPercent, calculateRealEstateValueTwd, calculateStockMarketValue, calculateStockUnrealizedGain, calculateStockUnrealizedGainPercent } from '../domain/calculations'
+import { calculateAnnualDividendTwd, calculateCashValue, calculateCryptoMarketValue, calculateCryptoUnrealizedGain, calculateCryptoUnrealizedGainPercent, calculateRealEstateValueTwd, calculateStockMarketValue, calculateStockUnrealizedGain, calculateStockUnrealizedGainPercent } from '../domain/calculations'
 import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
 import { EmptyState } from '../components/EmptyState'
@@ -42,6 +43,8 @@ interface AssetsPageProps {
 }
 
 type AssetTab = 'stocks' | 'cash' | 'crypto' | 'realEstate'
+type StockSort = 'market-value' | 'dividend-yield' | 'annual-dividend' | 'gain-percent' | 'symbol'
+type StockMarketFilter = Market | 'all'
 type StockDraft = Omit<StockAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
 type CashDraft = Omit<CashAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
 type CryptoDraft = Omit<CryptoAsset, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'isDemo'>
@@ -169,6 +172,43 @@ function dividendPeriodLabel(period: StockDividendPeriod | undefined): string {
   return period === 'trailing-12-months' ? '近 12 個月' : period === 'previous-calendar-year' ? '前一完整年度' : '手動估算'
 }
 
+function dividendAgeDays(fetchedAt: string | undefined): number | null {
+  if (!fetchedAt) return null
+  const timestamp = new Date(fetchedAt).getTime()
+  if (Number.isNaN(timestamp)) return null
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000))
+}
+
+function dividendStatusLabel(stock: StockAsset): string {
+  if (!hasDividendEstimate(stock)) return '待補資料'
+  if (stock.dividendSource !== 'yahoo-public') return '手動輸入'
+  const ageDays = dividendAgeDays(stock.dividendFetchedAt)
+  if (ageDays === null || ageDays === 0) return '自動 · 今日更新'
+  return ageDays <= 7 ? `自動 · ${ageDays} 天前` : `資料較舊 · ${ageDays} 天前`
+}
+
+function dividendStatusClass(stock: StockAsset): string {
+  if (!hasDividendEstimate(stock)) return 'dividend-status-missing'
+  if (stock.dividendSource !== 'yahoo-public') return 'dividend-status-manual'
+  return (dividendAgeDays(stock.dividendFetchedAt) ?? 0) > 7 ? 'dividend-status-stale' : 'dividend-status-auto'
+}
+
+function dividendDataDescription(stock: StockAsset): string {
+  if (!hasDividendEstimate(stock)) return '公開資料目前沒有可計算的配息事件，請用券商資料補填。'
+  if (stock.dividendSource !== 'yahoo-public') return '這筆數字是手動輸入的現金流假設，並非公開配息事件。'
+  return stock.dividendFetchedAt ? `公開資料更新於 ${formatQuoteTime(stock.dividendFetchedAt)}。` : '已由公開行情來源帶入。'
+}
+
+function dividendPeriodRange(stock: StockAsset): string {
+  if (stock.dividendPeriodStart && stock.dividendPeriodEnd) return `${stock.dividendPeriodStart}～${stock.dividendPeriodEnd}`
+  return stock.dividendPeriod ? '公開資料未提供日期區間' : '尚未建立配息期間'
+}
+
+function costYieldPercent(stock: StockAsset): number | null {
+  if (stock.averageCost <= 0 || stock.estimatedAnnualDividendPerShare <= 0) return null
+  return stock.estimatedAnnualDividendPerShare / stock.averageCost * 100
+}
+
 function dividendCurrency(stock: Pick<StockAsset, 'currency'>): string {
   return stock.currency === 'USD' ? '$' : 'NT$'
 }
@@ -230,7 +270,7 @@ function applyQuoteToStock(stock: StockAsset, quote: StockQuote, exchangeRate: U
   }
 }
 
-function StockMobileCard({ stock, displayMode, onEdit, onDelete }: { stock: StockAsset; displayMode: 'exact' | 'compact'; onEdit: () => void; onDelete: () => void }) {
+function StockMobileCard({ stock, displayMode, onEdit, onDelete, onDividendDetail }: { stock: StockAsset; displayMode: 'exact' | 'compact'; onEdit: () => void; onDelete: () => void; onDividendDetail: () => void }) {
   const gain = calculateStockUnrealizedGain(stock)
   const gainPercent = calculateStockUnrealizedGainPercent(stock)
   const isPositive = gain >= 0
@@ -239,13 +279,13 @@ function StockMobileCard({ stock, displayMode, onEdit, onDelete }: { stock: Stoc
     <article className="stock-mobile-card">
       <div className="stock-mobile-card-header">
         <div className="asset-cell"><span className="asset-avatar">{stock.symbol.slice(0, 2)}</span><div><strong>{stock.symbol}</strong><small>{stock.name}</small></div>{stock.isDemo && <span className="demo-badge">Demo</span>}</div>
-        <div className="stock-mobile-card-actions"><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={onEdit}><Edit3 size={17} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={onDelete}><Trash2 size={17} /></button></div>
+        <div className="stock-mobile-card-actions"><button type="button" className="icon-button small" aria-label={`查看 ${stock.symbol} 配息詳情`} title="配息詳情" onClick={onDividendDetail}><CircleDollarSign size={17} /></button><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={onEdit}><Edit3 size={17} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={onDelete}><Trash2 size={17} /></button></div>
       </div>
       <div className="stock-mobile-card-main">
         <div className="stock-mobile-card-holding"><span>持有 {formatNumber(stock.shares)}</span><small>{stock.averageCost > 0 ? `成本 ${stock.currency === 'USD' ? '$' : 'NT$'}${formatNumber(stock.averageCost, 2)}` : '成本待補'}</small></div>
         <div className="stock-mobile-card-value"><span>市值</span><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong><small>現價 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</small>{stock.currency === 'USD' && <small className="exchange-rate-note">匯率 {formatNumber(stock.exchangeRateToTwd, 4)} TWD/USD</small>}</div>
       </div>
-      <div className="stock-mobile-card-footer"><span className={isPositive ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)} <small>{formatPercent(gainPercent)}</small></span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span><span className="stock-mobile-card-dividend">年配息 {dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)} · 殖利率 {formatPercent(stock.estimatedYieldPercent)}<small>{dividendPeriodLabel(stock.dividendPeriod)}</small></span><span className="stock-mobile-card-collateral">質押擔保 {stock.asCollateral ? '是' : '否'}</span></div>
+      <div className="stock-mobile-card-footer"><span className={isPositive ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)} <small>{formatPercent(gainPercent)}</small></span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span><span className="stock-mobile-card-dividend">年配息 {dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)} · 殖利率 {formatPercent(stock.estimatedYieldPercent)}<small>{dividendPeriodLabel(stock.dividendPeriod)} · {dividendStatusLabel(stock)}</small></span><span className="stock-mobile-card-collateral">質押擔保 {stock.asCollateral ? '是' : '否'}</span></div>
     </article>
   )
 }
@@ -268,6 +308,27 @@ function Modal({ title, description, onClose, children }: { title: string; descr
   )
 }
 
+function DividendDetailModal({ stock, displayMode, onClose }: { stock: StockAsset; displayMode: 'exact' | 'compact'; onClose: () => void }) {
+  const costYield = costYieldPercent(stock)
+  const statusLabel = dividendStatusLabel(stock)
+  const statusClass = dividendStatusClass(stock)
+
+  return (
+    <Modal title={`${stock.symbol} 配息詳情`} description={`${stock.name || stock.symbol} · ${stock.market === 'TW' ? '台股' : stock.market === 'US' ? '美股' : '其他市場'}`} onClose={onClose}>
+      <div className="dividend-detail-summary"><span className="dividend-detail-icon"><CircleDollarSign size={22} /></span><div><strong>{dividendStatusLabel(stock)}</strong><span>{dividendDataDescription(stock)}</span></div><span className={`dividend-status-pill ${statusClass}`}>{statusLabel}</span></div>
+      <div className="dividend-detail-grid">
+        <div><span>每股年配息</span><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small>{stock.dividendPeriod ? dividendPeriodLabel(stock.dividendPeriod) : '尚未建立期間'}</small></div>
+        <div><span>現價殖利率</span><strong>{formatPercent(stock.estimatedYieldPercent)}</strong><small>以目前價格計算</small></div>
+        <div><span>成本殖利率</span><strong>{formatPercent(costYield)}</strong><small>{costYield === null ? '需要平均成本與配息' : '以平均成本計算'}</small></div>
+        <div><span>預估年度股息</span><strong>{formatTwd(calculateAnnualDividendTwd(stock), displayMode)}</strong><small>持有 {formatNumber(stock.shares)} 股</small></div>
+      </div>
+      <div className={`dividend-detail-status ${statusClass}`}><Info size={15} /><div><strong>資料期間：{dividendPeriodRange(stock)}</strong><span>{dividendDataDescription(stock)}</span></div></div>
+      <p className="dividend-detail-note">這裡的年化殖利率是依目前價格與已取得的配息現金流估算，不代表未來保證報酬，也不包含股價漲跌。</p>
+      <div className="modal-actions"><button type="button" className="button button-ghost" onClick={onClose}>關閉</button></div>
+    </Modal>
+  )
+}
+
 function SelectChevron() {
   return <ChevronDown className="select-chevron" size={16} aria-hidden="true" />
 }
@@ -275,6 +336,9 @@ function SelectChevron() {
 export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onSaveStock, onSaveStocks, onDeleteStock, onSaveCash, onDeleteCash, onSaveCrypto, onDeleteCrypto, onSaveRealEstate, onDeleteRealEstate }: AssetsPageProps) {
   const [activeTab, setActiveTab] = useState<AssetTab>('stocks')
   const [search, setSearch] = useState('')
+  const [stockMarketFilter, setStockMarketFilter] = useState<StockMarketFilter>('all')
+  const [stockSort, setStockSort] = useState<StockSort>('market-value')
+  const [onlyCollateral, setOnlyCollateral] = useState(false)
   const [stockModalOpen, setStockModalOpen] = useState(false)
   const [cashModalOpen, setCashModalOpen] = useState(false)
   const [cryptoModalOpen, setCryptoModalOpen] = useState(false)
@@ -289,6 +353,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
   const [realEstateDraft, setRealEstateDraft] = useState<RealEstateDraft>(defaultRealEstateDraft)
   const [cryptoFormNotice, setCryptoFormNotice] = useState<string | null>(null)
   const [quoteState, setQuoteState] = useState<QuoteState>(initialQuoteState)
+  const [dividendDetailStock, setDividendDetailStock] = useState<StockAsset | null>(null)
   const [isRefreshingAll, setIsRefreshingAll] = useState(false)
   const [quoteListNotice, setQuoteListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
   const [holdingsImportModalOpen, setHoldingsImportModalOpen] = useState(false)
@@ -353,7 +418,23 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
     })
   }, [onSaveStocks, stocks])
 
-  const filteredStocks = stocks.filter((stock) => `${stock.symbol} ${stock.name}`.toLowerCase().includes(search.toLowerCase()))
+  const filteredStocks = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    const matchingStocks = stocks.filter((stock) => {
+      const matchesSearch = `${stock.symbol} ${stock.name}`.toLowerCase().includes(query)
+      const matchesMarket = stockMarketFilter === 'all' || stock.market === stockMarketFilter
+      const matchesCollateral = !onlyCollateral || stock.asCollateral
+      return matchesSearch && matchesMarket && matchesCollateral
+    })
+
+    return [...matchingStocks].sort((left, right) => {
+      if (stockSort === 'market-value') return calculateStockMarketValue(right) - calculateStockMarketValue(left)
+      if (stockSort === 'annual-dividend') return calculateAnnualDividendTwd(right) - calculateAnnualDividendTwd(left)
+      if (stockSort === 'dividend-yield') return (right.estimatedYieldPercent || 0) - (left.estimatedYieldPercent || 0)
+      if (stockSort === 'gain-percent') return (calculateStockUnrealizedGainPercent(right) ?? Number.NEGATIVE_INFINITY) - (calculateStockUnrealizedGainPercent(left) ?? Number.NEGATIVE_INFINITY)
+      return left.symbol.localeCompare(right.symbol, 'en', { numeric: true })
+    })
+  }, [onlyCollateral, search, stockMarketFilter, stockSort, stocks])
   const filteredCash = cash.filter((item) => `${item.label} ${item.currency}`.toLowerCase().includes(search.toLowerCase()))
   const filteredCryptos = cryptos.filter((item) => `${item.symbol} ${item.name} ${item.platform}`.toLowerCase().includes(search.toLowerCase()))
   const filteredRealEstate = realEstate.filter((item) => `${item.name} ${realEstateTypeLabel(item.propertyType)}`.toLowerCase().includes(search.toLowerCase()))
@@ -809,6 +890,13 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
         <label className="search-field"><Search size={17} /><span className="sr-only">搜尋資產</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={activeTab === 'stocks' ? '搜尋代號或名稱' : activeTab === 'cash' ? '搜尋現金帳戶' : activeTab === 'crypto' ? '搜尋代號、名稱或平台' : '搜尋房產名稱'} /></label>
       </section>
 
+      {activeTab === 'stocks' && <section className="stock-filter-strip card" aria-label="股票清單篩選與排序">
+        <label className="stock-filter-control"><span>市場</span><select value={stockMarketFilter} onChange={(event) => setStockMarketFilter(event.target.value as StockMarketFilter)}><option value="all">全部市場</option><option value="TW">台股</option><option value="US">美股</option><option value="OTHER">其他市場</option></select></label>
+        <label className="stock-filter-control"><span>排序</span><select value={stockSort} onChange={(event) => setStockSort(event.target.value as StockSort)}><option value="market-value">市值最高</option><option value="dividend-yield">殖利率最高</option><option value="annual-dividend">年配息最高</option><option value="gain-percent">損益比例最高</option><option value="symbol">代號 A～Z</option></select></label>
+        <label className="stock-filter-check"><input type="checkbox" checked={onlyCollateral} onChange={(event) => setOnlyCollateral(event.target.checked)} /><span className="custom-checkbox"><Check size={12} /></span><span>只看質押擔保品</span></label>
+        <span className="stock-filter-count">顯示 {filteredStocks.length}／{stocks.length} 筆</span>
+      </section>}
+
       {activeTab === 'stocks' ? (
         <section className="card asset-table-card">
           <div className="section-heading-row asset-section-heading">
@@ -832,16 +920,16 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
                       <td data-label="現價"><strong>{stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</strong><small className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</small>{stock.currency === 'USD' && <small className="exchange-rate-note">匯率 {formatNumber(stock.exchangeRateToTwd, 4)} TWD/USD</small>}</td>
                       <td data-label="市值"><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong></td>
                       <td data-label="未實現損益">{stock.averageCost > 0 ? <><span className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)}</span><small className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatPercent(gainPercent)}</small></> : <span>待補成本</span>}</td>
-                      <td data-label="配息／殖利率"><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small className="dividend-source">{formatPercent(stock.estimatedYieldPercent)} · {dividendPeriodLabel(stock.dividendPeriod)}</small></td>
+                      <td data-label="配息／殖利率"><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small className={`dividend-source ${dividendStatusClass(stock)}`}>{formatPercent(stock.estimatedYieldPercent)} · {dividendPeriodLabel(stock.dividendPeriod)}</small><small className={`dividend-freshness ${dividendStatusClass(stock)}`}>{dividendStatusLabel(stock)}</small></td>
                       <td data-label="質押擔保"><span className={`collateral-tag ${stock.asCollateral ? 'is-on' : ''}`}>{stock.asCollateral ? <><Check size={13} />是</> : '否'}</span></td>
-                      <td className="row-actions"><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={() => openEditStock(stock)}><Edit3 size={15} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={() => void handleDeleteStock(stock)}><Trash2 size={15} /></button></td>
+                      <td className="row-actions"><button type="button" className="icon-button small" aria-label={`查看 ${stock.symbol} 配息詳情`} title="配息詳情" onClick={() => setDividendDetailStock(stock)}><CircleDollarSign size={15} /></button><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={() => openEditStock(stock)}><Edit3 size={15} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={() => void handleDeleteStock(stock)}><Trash2 size={15} /></button></td>
                     </tr>
                   })}
                 </tbody>
               </table>
             </div>
           )}
-          {filteredStocks.length > 0 && <div className="stock-mobile-list">{filteredStocks.map((stock) => <StockMobileCard key={stock.id} stock={stock} displayMode={displayMode} onEdit={() => openEditStock(stock)} onDelete={() => void handleDeleteStock(stock)} />)}</div>}
+          {filteredStocks.length > 0 && <div className="stock-mobile-list">{filteredStocks.map((stock) => <StockMobileCard key={stock.id} stock={stock} displayMode={displayMode} onEdit={() => openEditStock(stock)} onDelete={() => void handleDeleteStock(stock)} onDividendDetail={() => setDividendDetailStock(stock)} />)}</div>}
           <div className="table-note stock-table-note"><Info size={15} /> 市值 = 持有股數 × 現價 × 匯率；美股匯率自動抓取 USD/TWD，行情與匯率可能延遲或暫時無法使用。</div>
         </section>
       ) : activeTab === 'cash' ? (
@@ -918,6 +1006,8 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
           <div className="table-note"><Info size={15} /> 房產以你輸入的目前估值計入總資產；房貸剩餘本金請到「一般負債／房貸」管理。</div>
         </section>
       )}
+
+      {dividendDetailStock && <DividendDetailModal stock={dividendDetailStock} displayMode={displayMode} onClose={() => setDividendDetailStock(null)} />}
 
       {holdingsImportModalOpen && <HoldingsScreenshotImportModal status={holdingsImportStatus} progress={holdingsImportProgress} message={holdingsImportMessage} candidates={holdingsImportCandidates} onClose={() => setHoldingsImportModalOpen(false)} onChooseFiles={openHoldingsImportPicker} onUpdateCandidate={updateHoldingsImportCandidate} onConfirm={() => void handleConfirmHoldingsImport()} isConfirming={isHoldingsImportSaving} />}
 

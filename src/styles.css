@@ -340,3 +340,58 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
 .simulation-yield-note svg { flex: 0 0 auto; color: var(--teal); }
 .simulation-yield-note.is-error { color: var(--negative); }
 .simulation-yield-note.is-error svg { color: var(--negative); }
+
+/* V1.7.0 dashboard clarity, stock sorting, and dividend provenance. */
+.warning-text { color: var(--amber) !important; }
+.stock-filter-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 13px; margin-top: -7px; margin-bottom: 17px; padding: 11px 14px; }
+.stock-filter-control { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--ink-muted); font-size: 10px; }
+.stock-filter-control > span { flex: 0 0 auto; color: var(--ink-subtle); }
+.stock-filter-control select { min-width: 112px; min-height: 32px; padding: 5px 25px 5px 8px; border: 1px solid var(--line-strong); border-radius: 8px; outline: 0; color: var(--ink); background: var(--surface); font-size: 10px; }
+.stock-filter-control select:focus { border-color: var(--teal); }
+.stock-filter-check { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-muted); font-size: 10px; cursor: pointer; }
+.stock-filter-check input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.stock-filter-check input:checked + .custom-checkbox { color: #fff; border-color: var(--teal); background: var(--teal); }
+.stock-filter-count { margin-left: auto; color: var(--ink-subtle); font-size: 9px; white-space: nowrap; }
+.dividend-freshness { display: block; margin-top: 3px; font-size: 9px; font-weight: 600; }
+.dividend-status-auto { color: var(--positive) !important; }
+.dividend-status-manual { color: var(--amber) !important; }
+.dividend-status-stale { color: var(--negative) !important; }
+.dividend-status-missing { color: var(--ink-subtle) !important; }
+.dividend-detail-summary { display: flex; align-items: center; gap: 11px; padding: 13px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-soft); }
+.dividend-detail-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px; color: var(--teal); background: var(--teal-soft); }
+.dividend-detail-summary > div { min-width: 0; }
+.dividend-detail-summary strong, .dividend-detail-summary span { display: block; }
+.dividend-detail-summary strong { color: var(--ink); font-size: 13px; }
+.dividend-detail-summary > div span { margin-top: 4px; color: var(--ink-muted); font-size: 10px; line-height: 1.5; }
+.dividend-status-pill { margin-left: auto; padding: 5px 8px; border-radius: 999px; background: var(--surface); font-size: 9px; font-weight: 700; white-space: nowrap; }
+.dividend-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 13px; }
+.dividend-detail-grid > div { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.dividend-detail-grid span, .dividend-detail-grid strong, .dividend-detail-grid small { display: block; }
+.dividend-detail-grid span { color: var(--ink-subtle); font-size: 10px; }
+.dividend-detail-grid strong { margin-top: 7px; color: var(--ink); font-family: 'DM Mono', monospace; font-size: 16px; }
+.dividend-detail-grid small { margin-top: 5px; color: var(--ink-muted); font-size: 9px; }
+.dividend-detail-status { display: flex; align-items: flex-start; gap: 8px; margin-top: 13px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.dividend-detail-status svg { flex: 0 0 auto; margin-top: 1px; }
+.dividend-detail-status strong, .dividend-detail-status span { display: block; }
+.dividend-detail-status strong { font-size: 10px; }
+.dividend-detail-status span { margin-top: 4px; color: var(--ink-muted); font-size: 9px; line-height: 1.5; }
+.dividend-detail-status.dividend-status-auto { border-color: rgba(17, 128, 94, .24); background: var(--positive-soft); }
+.dividend-detail-status.dividend-status-manual { border-color: rgba(217, 119, 6, .24); background: var(--amber-soft); }
+.dividend-detail-status.dividend-status-stale { border-color: rgba(194, 65, 77, .24); background: var(--negative-soft); }
+.dividend-detail-note { margin: 13px 0 0; color: var(--ink-subtle); font-size: 10px; line-height: 1.6; }
+
+@media (max-width: 820px) {
+  .stock-filter-strip { align-items: stretch; margin-top: -3px; padding: 12px; }
+  .stock-filter-control { flex: 1 1 calc(50% - 7px); justify-content: space-between; }
+  .stock-filter-control select { flex: 1; min-width: 0; }
+  .stock-filter-check { flex-basis: 100%; }
+  .stock-filter-count { width: 100%; margin-left: 0; }
+}
+
+@media (max-width: 470px) {
+  .stock-filter-control { flex-basis: 100%; }
+  .stock-filter-check { padding-top: 2px; }
+  .dividend-detail-summary { align-items: flex-start; flex-wrap: wrap; }
+  .dividend-status-pill { margin-left: 53px; }
+  .dividend-detail-grid { grid-template-columns: 1fr; }
+}

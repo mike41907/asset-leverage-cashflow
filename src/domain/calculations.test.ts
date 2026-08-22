@@ -9,6 +9,7 @@ import {
   calculateNetWorth,
   calculateMonthlyCashFlow,
   calculateMonthlyCashFlowBreakdown,
+  calculatePassiveIncomeCoveragePercent,
   calculatePerShareDividendTarget,
   calculatePortfolioSummary,
   calculateRequiredShares,
@@ -237,6 +238,11 @@ describe('portfolio calculations', () => {
     expect(summary.monthlyLoanPrincipalTwd).toBe(2_000)
     expect(summary.monthlyDebtServiceTwd).toBe(3_000)
     expect(summary.monthlyCashFlowTwd).toBe(38_000)
+  })
+
+  it('calculates passive income coverage against monthly outflow', () => {
+    expect(calculatePassiveIncomeCoveragePercent(10_000, 40_000)).toBe(25)
+    expect(calculatePassiveIncomeCoveragePercent(10_000, 0)).toBeNull()
   })
 
   it('calculates stress-test values and maintenance ratio after a drop', () => {

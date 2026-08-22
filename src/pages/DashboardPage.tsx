@@ -9,6 +9,7 @@ import {
   Coins,
   Landmark,
   Plus,
+  ReceiptText,
   ShieldCheck,
   WalletCards,
 } from 'lucide-react'
@@ -16,6 +17,7 @@ import type { AppState, PageKey } from '../domain/models'
 import {
   calculateStockMarketValue,
   calculateStockUnrealizedGainPercent,
+  calculatePassiveIncomeCoveragePercent,
   type PortfolioSummary,
 } from '../domain/calculations'
 import { formatCurrencyWithSign, formatPercent, formatTwd } from '../shared/formatters'
@@ -44,12 +46,17 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
   const maintenanceTitle = !hasLoans ? '尚未設定質押' : summary.maintenanceStatus === 'safe' ? '維持率安全' : summary.maintenanceStatus === 'warning' ? '維持率進入警戒' : summary.maintenanceStatus === 'danger' ? '維持率已低於追繳線' : '維持率暫時無法判讀'
   const maintenanceDescription = !hasLoans ? '目前沒有借款資料可進行維持率判讀。' : `${maintenanceValue}；警戒線 ${formatPercent(state.settings.maintenanceWarningRatioPercent, 0)}。`
   const MaintenanceIcon = summary.maintenanceStatus === 'safe' ? ShieldCheck : CircleAlert
+  const monthlyOutflowTwd = summary.monthlyExpenseTwd + summary.monthlyDebtServiceTwd
+  const passiveCoveragePercent = calculatePassiveIncomeCoveragePercent(summary.monthlyEstimatedDividendTwd, monthlyOutflowTwd)
+  const passiveCoverageValue = passiveCoveragePercent === null ? '—' : formatPercent(passiveCoveragePercent)
+  const passiveCoverageClass = passiveCoveragePercent === null ? '' : passiveCoveragePercent >= 100 ? 'positive-text' : 'warning-text'
+  const manualPriceCount = state.stocks.filter((stock) => stock.market !== 'OTHER' && stock.currentPriceSource !== 'yahoo-public').length
 
   return (
     <div className="page-container">
       <section className="page-heading dashboard-heading">
         <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.6.3</div>
+          <div className="eyebrow"><span className="eyebrow-mark" />資產控制台 / V1.7.0</div>
           <h1>先看清楚，<span>再決定要不要加槓桿。</span></h1>
           <p>把股票、現金與未來的借款風險放在同一張資產負債表裡。</p>
         </div>
@@ -101,13 +108,6 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <div className="metric-grid">
               <MetricCard
-                label="淨資產"
-                value={formatTwd(summary.netWorthTwd, displayMode)}
-                description="總資產 − 總負債"
-                icon={Landmark}
-                tone="navy"
-              />
-              <MetricCard
                 label="股票市值"
                 value={formatTwd(summary.stockMarketValueTwd, displayMode)}
                 description={`${state.stocks.length} 筆持倉`}
@@ -134,6 +134,21 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                 description="收入 − 支出與借款成本"
                 icon={CircleDollarSign}
                 tone="amber"
+              />
+              <MetricCard
+                label="每月支出"
+                value={formatTwd(monthlyOutflowTwd, displayMode)}
+                description="固定支出＋貸款付款"
+                icon={ReceiptText}
+                tone="navy"
+              />
+              <MetricCard
+                label="股息覆蓋率"
+                value={passiveCoverageValue}
+                description={passiveCoveragePercent === null ? '先設定固定支出或貸款付款' : '預估股息 ÷ 每月支出'}
+                icon={Landmark}
+                tone="teal"
+                valueClassName={passiveCoverageClass}
               />
             </div>
           </section>
@@ -190,7 +205,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
               <div className="section-heading-row">
                 <div>
                   <div className="section-kicker">資產健康度</div>
-                  <h2>先建立基準線</h2>
+                  <h2>槓桿與現金流安全度</h2>
                 </div>
                 <div className={`health-icon health-icon-${summary.maintenanceStatus}`}><MaintenanceIcon size={20} /></div>
               </div>
@@ -237,18 +252,17 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card next-step-card">
               <div className="next-step-accent" />
-              <div className="section-kicker">V1.6.3 完成項目</div>
-              <h2>再投入試算，先把股息資料補完整。</h2>
-              <p>資產頁會自動補抓缺少配息資料的持倉；查不到時也能直接輸入年化殖利率假設。</p>
+              <div className="section-kicker">本期檢查點</div>
+              <h2>先看現金流，再決定槓桿。</h2>
+              <p>首頁先把每月支出與股息覆蓋率放到前面；資產頁則可依市值、殖利率或年配息整理持倉。</p>
               <div className="next-step-list">
-                <div><span className="check-icon">✓</span>自動帶入目標股票最新價格</div>
-                <div><span className="check-icon">✓</span>自動抓近 12 個月或前一年度配息</div>
-                <div><span className="check-icon">✓</span>新增年股息同步反映每月現金流</div>
-                <div><span className="check-icon">✓</span>可覆寫年化殖利率，明確區分股息與價差</div>
-                <div><span className="check-icon">✓</span>00919、00713、00929 等 ETF 會帶入近 12 個月配息</div>
+                <div><span className="check-icon">✓</span>每月支出 {formatTwd(monthlyOutflowTwd, displayMode)}</div>
+                <div><span className="check-icon">✓</span>股息覆蓋率 {passiveCoverageValue}</div>
+                <div><span className="check-icon">✓</span>{manualPriceCount > 0 ? `${manualPriceCount} 筆行情尚未自動更新` : '台股／美股行情已有公開來源時間'}</div>
+                <div><span className="check-icon">✓</span>配息資料可查看期間、來源與更新狀態</div>
               </div>
-              <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('settings')}>
-                檢視本機與顯示設定
+              <button type="button" className="button button-secondary button-full" onClick={() => onNavigate('assets')}>
+                整理我的持倉清單
               </button>
             </article>
           </section>
