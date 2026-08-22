@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { ArrowDownRight, ArrowUpRight, Check, CircleDollarSign, Edit3, Info, Plus, ReceiptText, ShieldCheck, Trash2, X } from 'lucide-react'
-import type { CashFlowItem, CashFlowType, DividendTarget, Liability, Loan, StockAsset } from '../domain/models'
-import { calculateMonthlyCashFlowBreakdown, type PortfolioSummary } from '../domain/calculations'
+import type { CashFlowFrequency, CashFlowItem, CashFlowType, DividendTarget, Liability, Loan, StockAsset } from '../domain/models'
+import { calculateCashFlowItemMonthlyAmount, calculateCashFlowMonthlyAmount, calculateMonthlyCashFlowBreakdown, type PortfolioSummary } from '../domain/calculations'
 import { formatCurrencyWithSign, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
 import { PassiveIncomeTarget } from '../components/PassiveIncomeTarget'
@@ -24,10 +24,18 @@ interface CashFlowDraft {
   type: CashFlowType
   category: string
   name: string
-  monthlyAmount: number
+  amount: number
+  frequency: CashFlowFrequency
   notes: string
   isActive: boolean
 }
+
+const cashFlowFrequencyOptions: { value: CashFlowFrequency; label: string; amountLabel: string; description: string }[] = [
+  { value: 'monthly', label: '每月', amountLabel: '每月金額', description: '每月直接計入現金流' },
+  { value: 'quarterly', label: '每季', amountLabel: '每季金額', description: '每季金額 ÷ 3，換算每月' },
+  { value: 'semiannual', label: '每半年', amountLabel: '每半年金額', description: '半年金額 ÷ 6，換算每月' },
+  { value: 'annual', label: '每年', amountLabel: '每年金額', description: '年度金額 ÷ 12，換算每月' },
+]
 
 const incomeCategories = ['薪資', '租金', '利息收入', '其他收入']
 const expenseCategories = ['房貸', '捐款', '稅費', '車貸', '信貸', '保險', '固定生活費', '醫療', '教育', '其他支出']
@@ -42,10 +50,15 @@ function createDraft(item: CashFlowItem | null, initialType: CashFlowType): Cash
     type,
     category: item?.category ?? categoriesFor(type)[0],
     name: item?.name ?? '',
-    monthlyAmount: item?.monthlyAmount ?? 0,
+    amount: item?.amount ?? item?.monthlyAmount ?? 0,
+    frequency: item?.frequency ?? 'monthly',
     notes: item?.notes ?? '',
     isActive: item?.isActive ?? true,
   }
+}
+
+function frequencyOption(frequency: CashFlowFrequency) {
+  return cashFlowFrequencyOptions.find((option) => option.value === frequency) ?? cashFlowFrequencyOptions[0]
 }
 
 function typeLabel(type: CashFlowType): string {
@@ -56,15 +69,21 @@ function formatSignedAmount(value: number, displayMode: 'exact' | 'compact'): st
   return value === 0 ? formatTwd(0, displayMode) : formatCurrencyWithSign(value, displayMode)
 }
 
+function formatFrequencySummary(frequency: CashFlowFrequency | undefined): string {
+  const option = frequencyOption(frequency ?? 'monthly')
+  return option.value === 'monthly' ? '每月' : `${option.label} ÷ ${option.value === 'quarterly' ? 3 : option.value === 'semiannual' ? 6 : 12}`
+}
+
 function CashFlowItemRow({ item, displayMode, onEdit, onDelete, onToggle }: { item: CashFlowItem; displayMode: 'exact' | 'compact'; onEdit: () => void; onDelete: () => void; onToggle: () => void }) {
   const isIncome = item.type === 'income'
+  const monthlyAmount = calculateCashFlowItemMonthlyAmount(item)
   return (
     <article className={`cashflow-item-row ${!item.isActive ? 'is-paused' : ''}`}>
       <button type="button" className="cashflow-item-toggle" aria-pressed={item.isActive} aria-label={`${item.name || item.category}${item.isActive ? '已啟用' : '已停用'}`} onClick={onToggle}>
         <span className="cashflow-toggle-track"><span /></span>
       </button>
       <div className="cashflow-item-main"><div className="cashflow-item-title"><strong>{item.name || item.category}</strong>{!item.isActive && <span className="cashflow-paused-badge">已停用</span>}</div><small>{item.category}{item.notes ? ` · ${item.notes}` : ''}</small></div>
-      <strong className={`cashflow-item-amount ${isIncome ? 'positive-text' : 'negative-text'}`}>{isIncome ? '+' : '-'}{formatTwd(item.monthlyAmount, displayMode)}</strong>
+      <div className="cashflow-item-amount-wrap"><strong className={`cashflow-item-amount ${isIncome ? 'positive-text' : 'negative-text'}`}>{isIncome ? '+' : '-'}{formatTwd(monthlyAmount, displayMode)}</strong><small className="cashflow-item-amount-note">{formatFrequencySummary(item.frequency)}</small></div>
       <div className="cashflow-item-actions"><button type="button" className="icon-button small" aria-label={`編輯 ${item.name || item.category}`} onClick={onEdit}><Edit3 size={14} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${item.name || item.category}`} onClick={onDelete}><Trash2 size={14} /></button></div>
     </article>
   )
@@ -81,22 +100,27 @@ function CashFlowList({ type, items, displayMode, onAdd, onEdit, onDelete, onTog
   )
 }
 
-function CashFlowItemModal({ item, initialType, onClose, onSave }: { item: CashFlowItem | null; initialType: CashFlowType; onClose: () => void; onSave: (item: CashFlowItem) => Promise<void> }) {
+function CashFlowItemModal({ item, initialType, displayMode, onClose, onSave }: { item: CashFlowItem | null; initialType: CashFlowType; displayMode: 'exact' | 'compact'; onClose: () => void; onSave: (item: CashFlowItem) => Promise<void> }) {
   const [draft, setDraft] = useState<CashFlowDraft>(() => createDraft(item, initialType))
   const categories = categoriesFor(draft.type)
   const categoryOptions = categories.includes(draft.category) ? categories : [draft.category, ...categories]
+  const selectedFrequency = frequencyOption(draft.frequency)
+  const monthlyEquivalent = calculateCashFlowMonthlyAmount(draft.amount, draft.frequency)
 
   const changeType = (type: CashFlowType) => setDraft((current) => ({ ...current, type, category: categoriesFor(type)[0] }))
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const time = new Date().toISOString()
+    const amount = Math.max(0, draft.amount)
     await onSave({
       id: item?.id ?? createId('cashflow'),
       type: draft.type,
       category: draft.category,
       name: draft.name.trim(),
-      monthlyAmount: Math.max(0, draft.monthlyAmount),
+      amount,
+      frequency: draft.frequency,
+      monthlyAmount: calculateCashFlowMonthlyAmount(amount, draft.frequency),
       linkedAssetId: item?.linkedAssetId ?? null,
       isActive: draft.isActive,
       notes: draft.notes.trim(),
@@ -112,7 +136,7 @@ function CashFlowItemModal({ item, initialType, onClose, onSave }: { item: CashF
         <div className="modal-header"><div><div className="section-kicker">本機現金流資料</div><h2 id="cashflow-modal-title">{item ? '編輯現金流項目' : '新增現金流項目'}</h2></div><button type="button" className="icon-button" aria-label="關閉視窗" onClick={onClose}><X size={19} /></button></div>
         <form className="asset-form" onSubmit={(event) => void handleSubmit(event)}>
           <div className="cashflow-type-switch" role="radiogroup" aria-label="現金流類型"><button type="button" role="radio" aria-checked={draft.type === 'income'} className={draft.type === 'income' ? 'is-active' : ''} onClick={() => changeType('income')}><ArrowDownRight size={15} />收入</button><button type="button" role="radio" aria-checked={draft.type === 'expense'} className={draft.type === 'expense' ? 'is-active' : ''} onClick={() => changeType('expense')}><ArrowUpRight size={15} />支出</button></div>
-          <div className="form-grid form-grid-two"><label className="form-field"><span>項目名稱</span><input required value={draft.name} placeholder={draft.type === 'income' ? '例如 正職薪資' : '例如 每月生活費'} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label><label className="form-field"><span>分類</span><div className="select-wrap"><select value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))}>{categoryOptions.map((category) => <option value={category} key={category}>{category}</option>)}</select><span className="select-chevron">⌄</span></div></label><label className="form-field form-field-wide"><span>每月金額<small>NTD</small></span><input required min="0" step="1" type="number" value={draft.monthlyAmount || ''} placeholder="0" onChange={(event) => setDraft((current) => ({ ...current, monthlyAmount: Number(event.target.value) }))} /></label><label className="form-field form-field-wide"><span>備註<small>選填</small></span><textarea rows={3} value={draft.notes} placeholder="例如 發薪日、調整週期或來源說明" onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} /></label></div>
+          <div className="form-grid form-grid-two"><label className="form-field"><span>項目名稱</span><input required value={draft.name} placeholder={draft.type === 'income' ? '例如 正職薪資' : '例如 保險費或所得稅'} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label><label className="form-field"><span>分類</span><div className="select-wrap"><select value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))}>{categoryOptions.map((category) => <option value={category} key={category}>{category}</option>)}</select><span className="select-chevron">⌄</span></div></label><label className="form-field"><span>{selectedFrequency.amountLabel}<small>NTD</small></span><input required min="0" step="1" type="number" value={draft.amount || ''} placeholder="0" onChange={(event) => setDraft((current) => ({ ...current, amount: Number(event.target.value) }))} /></label><label className="form-field"><span>發生週期</span><div className="select-wrap"><select value={draft.frequency} onChange={(event) => setDraft((current) => ({ ...current, frequency: event.target.value as CashFlowFrequency }))}>{cashFlowFrequencyOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select><span className="select-chevron">⌄</span></div></label><div className="cashflow-frequency-preview form-field-wide"><span>每月計入現金流</span><strong>{formatTwd(monthlyEquivalent, displayMode)}</strong><small>{selectedFrequency.description}</small></div><label className="form-field form-field-wide"><span>備註<small>選填</small></span><textarea rows={3} value={draft.notes} placeholder="例如 繳費月份、到期日或調整週期" onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} /></label></div>
           <label className="checkbox-field cashflow-active-field"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft((current) => ({ ...current, isActive: event.target.checked }))} /><span className="custom-checkbox"><Check size={13} /></span><span>計入每月現金流</span></label>
           <div className="modal-actions"><button type="button" className="button button-ghost" onClick={onClose}>取消</button><button type="submit" className="button button-primary"><Check size={15} />儲存{typeLabel(draft.type)}</button></div>
         </form>
@@ -169,7 +193,7 @@ export function CashFlowPage({ items, loans, liabilities, stocks, targets, summa
 
       <div className="cashflow-lists-grid"><CashFlowList type="income" items={items} displayMode={displayMode} onAdd={() => openNew('income')} onEdit={openEdit} onDelete={handleDelete} onToggle={handleToggle} /><CashFlowList type="expense" items={items} displayMode={displayMode} onAdd={() => openNew('expense')} onEdit={openEdit} onDelete={handleDelete} onToggle={handleToggle} /></div>
 
-      {modalOpen && <CashFlowItemModal key={editingItem?.id ?? `new-${newItemType}`} item={editingItem} initialType={newItemType} onClose={() => setModalOpen(false)} onSave={onSaveItem} />}
+      {modalOpen && <CashFlowItemModal key={editingItem?.id ?? `new-${newItemType}`} item={editingItem} initialType={newItemType} displayMode={displayMode} onClose={() => setModalOpen(false)} onSave={onSaveItem} />}
       </>}
     </div>
   )

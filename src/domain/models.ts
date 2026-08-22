@@ -6,6 +6,7 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 export type NumberDisplayMode = 'exact' | 'compact'
 export type AssetKind = 'stock' | 'cash' | 'crypto' | 'real-estate' | 'other'
 export type CashFlowType = 'income' | 'expense'
+export type CashFlowFrequency = 'monthly' | 'quarterly' | 'semiannual' | 'annual'
 export type RepaymentMethod = 'interest-only' | 'equal-principal' | 'amortized'
 export type DividendIncomeMode = 'gross' | 'net'
 export type StockPriceSource = 'manual' | 'yahoo-public'
@@ -137,6 +138,10 @@ export interface CashFlowItem {
   type: CashFlowType
   category: string
   name: string
+  /** Entered amount for the selected frequency; optional for pre-frequency records. */
+  amount?: number
+  /** Existing records without this field are treated as monthly. */
+  frequency?: CashFlowFrequency
   monthlyAmount: number
   linkedAssetId: string | null
   isActive: boolean

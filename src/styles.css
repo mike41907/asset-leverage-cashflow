@@ -534,3 +534,20 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
   .asset-dividend-summary span { font-size: 8px; white-space: nowrap; }
   .asset-dividend-summary strong { font-size: 11px; letter-spacing: -.055em; }
 }
+
+/* V1.10.0 periodic cash flow. */
+.cashflow-item-amount-wrap { min-width: 0; max-width: 160px; text-align: right; }
+.cashflow-item-amount-wrap .cashflow-item-amount { display: block; }
+.cashflow-item-amount-note { display: block; margin-top: 3px; overflow: hidden; color: var(--ink-subtle); font-family: 'DM Mono', monospace; font-size: 8px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.cashflow-frequency-preview { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; padding: 12px 13px; border: 1px solid rgba(14, 116, 144, .22); border-radius: 11px; color: var(--ink-muted); background: var(--teal-soft); }
+.cashflow-frequency-preview span, .cashflow-frequency-preview strong, .cashflow-frequency-preview small { display: block; }
+.cashflow-frequency-preview span { font-size: 10px; }
+.cashflow-frequency-preview strong { color: var(--teal-dark); font-family: 'DM Mono', monospace; font-size: 17px; text-align: right; }
+.cashflow-frequency-preview small { grid-column: 1 / -1; color: var(--ink-muted); font-size: 9px; }
+
+@media (max-width: 470px) {
+  .cashflow-item-amount-wrap { max-width: 125px; }
+  .cashflow-item-amount-note { font-size: 8px; }
+  .cashflow-frequency-preview { grid-template-columns: 1fr auto; gap: 4px 8px; padding: 10px 11px; }
+  .cashflow-frequency-preview strong { font-size: 15px; }
+}

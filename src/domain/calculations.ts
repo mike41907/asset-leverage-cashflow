@@ -1,4 +1,4 @@
-import type { CashAsset, CashFlowItem, Collateral, CryptoAsset, Liability, Loan, RealEstateAsset, StockAsset } from './models'
+import type { CashAsset, CashFlowFrequency, CashFlowItem, Collateral, CryptoAsset, Liability, Loan, RealEstateAsset, StockAsset } from './models'
 
 export type MaintenanceStatus = 'safe' | 'warning' | 'danger' | 'unavailable'
 
@@ -154,6 +154,23 @@ function finitePositive(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0
 }
 
+const cashFlowFrequencyDivisors: Record<CashFlowFrequency, number> = {
+  monthly: 1,
+  quarterly: 3,
+  semiannual: 6,
+  annual: 12,
+}
+
+export function calculateCashFlowMonthlyAmount(amount: number, frequency: CashFlowFrequency = 'monthly'): number {
+  const divisor = cashFlowFrequencyDivisors[frequency] ?? 1
+  return finitePositive(amount) / divisor
+}
+
+export function calculateCashFlowItemMonthlyAmount(item: CashFlowItem): number {
+  const enteredAmount = typeof item.amount === 'number' ? item.amount : item.monthlyAmount
+  return calculateCashFlowMonthlyAmount(enteredAmount, item.frequency ?? 'monthly')
+}
+
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0)
 }
@@ -307,8 +324,8 @@ export function calculateMonthlyCashFlow(
   investmentIncomeTwd = 0,
   debtServiceTwd = 0,
 ): number {
-  const monthlyIncome = sum(incomeItems.filter((item) => item.isActive).map((item) => finitePositive(item.monthlyAmount)))
-  const monthlyExpenses = sum(expenseItems.filter((item) => item.isActive).map((item) => finitePositive(item.monthlyAmount)))
+  const monthlyIncome = sum(incomeItems.filter((item) => item.isActive).map(calculateCashFlowItemMonthlyAmount))
+  const monthlyExpenses = sum(expenseItems.filter((item) => item.isActive).map(calculateCashFlowItemMonthlyAmount))
   return monthlyIncome + finitePositive(investmentIncomeTwd) - monthlyExpenses - finitePositive(debtServiceTwd)
 }
 
@@ -320,8 +337,8 @@ export function calculateMonthlyCashFlowBreakdown(
   liabilityPaymentTwd = 0,
   rentalIncomeTwd = 0,
 ): MonthlyCashFlowBreakdown {
-  const manualIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
-  const manualExpenseTwd = sum(cashFlowItems.filter((item) => item.type === 'expense' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
+  const manualIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map(calculateCashFlowItemMonthlyAmount))
+  const manualExpenseTwd = sum(cashFlowItems.filter((item) => item.type === 'expense' && item.isActive).map(calculateCashFlowItemMonthlyAmount))
   const safeInvestmentIncomeTwd = finitePositive(investmentIncomeTwd)
   const safeLoanInterestTwd = finitePositive(loanInterestTwd)
   const safeLoanPrincipalTwd = finitePositive(loanPrincipalTwd)
@@ -542,8 +559,8 @@ export function calculatePortfolioSummary(
   const annualEstimatedDividendTwd = sum(stocks.map(calculateAnnualDividendTwd))
   const monthlyEstimatedDividendTwd = annualEstimatedDividendTwd / 12
   const monthlyRentalIncomeTwd = sum(realEstate.map((asset) => finitePositive(asset.monthlyRentalIncomeTwd)))
-  const monthlyIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map((item) => finitePositive(item.monthlyAmount))) + monthlyRentalIncomeTwd
-  const monthlyExpenseTwd = sum(cashFlowItems.filter((item) => item.type === 'expense' && item.isActive).map((item) => finitePositive(item.monthlyAmount)))
+  const monthlyIncomeTwd = sum(cashFlowItems.filter((item) => item.type === 'income' && item.isActive).map(calculateCashFlowItemMonthlyAmount)) + monthlyRentalIncomeTwd
+  const monthlyExpenseTwd = sum(cashFlowItems.filter((item) => item.type === 'expense' && item.isActive).map(calculateCashFlowItemMonthlyAmount))
   const monthlyLoanInterestTwd = sum(
     loans.map((loan) => loan.monthlyInterest > 0 ? loan.monthlyInterest : calculateMonthlyLoanInterest(loan.outstandingBalance, loan.annualInterestRatePercent)),
   )

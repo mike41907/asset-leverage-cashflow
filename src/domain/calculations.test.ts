@@ -1,5 +1,7 @@
 import {
   calculateCollateralSelectionsValueTwd,
+  calculateCashFlowItemMonthlyAmount,
+  calculateCashFlowMonthlyAmount,
   calculateCryptoMarketValue,
   calculateCryptoUnrealizedGain,
   calculateDividendTarget,
@@ -206,6 +208,18 @@ describe('portfolio calculations', () => {
     expect(breakdown.totalExpenseTwd).toBe(25_000)
     expect(breakdown.netCashFlowTwd).toBe(35_000)
     expect(calculateMonthlyCashFlow([items[0]], [items[1], items[2]], 10_000, 5_000)).toBe(35_000)
+  })
+
+  it('converts periodic cash flow amounts into monthly equivalents', () => {
+    expect(calculateCashFlowMonthlyAmount(12_000, 'annual')).toBe(1_000)
+    expect(calculateCashFlowMonthlyAmount(6_000, 'semiannual')).toBe(1_000)
+    expect(calculateCashFlowMonthlyAmount(3_000, 'quarterly')).toBe(1_000)
+    const annualTax: CashFlowItem = {
+      id: 'annual-tax', type: 'expense', category: '稅費', name: '所得稅', amount: 12_000,
+      frequency: 'annual', monthlyAmount: 12_000, linkedAssetId: null, isActive: true, notes: '', createdAt: '', updatedAt: '',
+    }
+    expect(calculateCashFlowItemMonthlyAmount(annualTax)).toBe(1_000)
+    expect(calculateMonthlyCashFlowBreakdown([annualTax]).manualExpenseTwd).toBe(1_000)
   })
 
   it('includes dividend income and loan principal in the portfolio cash flow', () => {
