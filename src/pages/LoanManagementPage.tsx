@@ -268,13 +268,8 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
 
   return (
     <div className="page-container loan-page">
-      <section className="page-heading">
-        <div>
-          <div className="eyebrow"><span className="eyebrow-mark" />{activeView === 'simulation' ? '投資模擬 / V0.3' : activeView === 'stress' ? '市場壓力測試 / V0.4' : activeView === 'scenarios' ? '多情境比較 / V0.7' : activeView === 'liabilities' ? '家庭負債 / V1.2' : '質押風控 / V0.2'}</div>
-          <h1>{activeView === 'simulation' ? <>借款先試算，<span>再決定要不要放大。</span></> : activeView === 'stress' ? <>先問最壞情境，<span>再決定槓桿上限。</span></> : activeView === 'scenarios' ? <>不要只看一個答案，<span>把方案放在同一張表。</span></> : activeView === 'liabilities' ? <>把家庭負債，<span>放進每月現金流。</span></> : <>把槓桿，<span>放在可控範圍內。</span></>}</h1>
-        </div>
+      <section className="page-heading loan-toolbar">
         <div className="heading-actions">
-          <span className="local-data-pill"><ShieldCheck size={15} />資料僅存在本機</span>
           <div className="segmented-control page-view-switch" role="tablist" aria-label="質押功能">
             <button type="button" role="tab" aria-selected={activeView === 'simulation'} className={activeView === 'simulation' ? 'is-active' : ''} onClick={() => { setActiveView('simulation'); setModalOpen(false) }}>再投入模擬</button>
             <button type="button" role="tab" aria-selected={activeView === 'stress'} className={activeView === 'stress' ? 'is-active' : ''} onClick={() => { setActiveView('stress'); setModalOpen(false) }}>壓力測試</button>

@@ -192,14 +192,6 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
 
   return (
     <div className="simulation-v03">
-      <section className="simulation-intro-card card">
-        <div>
-          <div className="section-kicker">V0.3 / 借款再投資試算</div>
-          <h2>先看 Before / After，<span>再決定要不要放大。</span></h2>
-        </div>
-        <span className="simulation-local-pill"><ShieldCheck size={15} />純本機試算，不會改動實際資料</span>
-      </section>
-
       <div className="simulation-layout">
         <section className="card simulation-controls-card">
           <div className="section-heading-row simulation-section-heading"><div><div className="section-kicker">方案設定</div><h2>如果現在借這一筆？</h2></div><span className="section-caption">暫不儲存</span></div>
