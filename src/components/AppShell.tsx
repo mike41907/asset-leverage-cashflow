@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageKey } from '../domain/models'
+import { APP_VERSION_LABEL } from '../shared/appVersion'
 
 interface AppShellProps {
   activePage: PageKey
@@ -93,6 +94,7 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
               <span>{activeLabel}</span>
             </div>
           </div>
+          <span className="mobile-version" aria-label={`APP 版本 ${APP_VERSION_LABEL}`}>{APP_VERSION_LABEL}</span>
           <div className="offline-badge compact-offline-badge">
             <span className="status-dot" />
             <span>離線</span>

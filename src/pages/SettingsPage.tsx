@@ -2,6 +2,7 @@ import { useRef, useState, type ChangeEvent } from 'react'
 import { Check, Database, Download, Moon, Palette, RotateCcw, ShieldCheck, Sun, Upload } from 'lucide-react'
 import { parseBackupData, type BackupImportMode } from '../data/backup'
 import type { AppSettings, BackupData, ThemeMode } from '../domain/models'
+import { APP_VERSION_LABEL } from '../shared/appVersion'
 
 interface SettingsPageProps {
   settings: AppSettings
@@ -109,7 +110,7 @@ export function SettingsPage({ settings, hasDemoData, onUpdateSettings, onClearD
         </div>
       </section>
 
-       <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · V1.8.0</span></footer>
+       <footer className="settings-footer"><span className="footer-check"><Check size={14} />本機優先</span><span>Asset Leverage Cashflow · {APP_VERSION_LABEL}</span></footer>
     </div>
   )
 }
