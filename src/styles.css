@@ -562,3 +562,38 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
   .cashflow-toolbar .cashflow-view-switch { grid-column: 1 / -1; width: 100%; }
   .cashflow-toolbar .heading-actions > .button { grid-column: 1 / -1; width: 100%; }
 }
+
+/* V1.10.2 button separation and grouped-control clarity. */
+.segmented-control { gap: 8px; padding: 0; background: transparent; }
+.segmented-control button { border: 1px solid var(--line); border-radius: 10px; color: var(--ink-muted); background: var(--surface); box-shadow: var(--shadow-sm); }
+.segmented-control button.is-active { border-color: rgba(14, 116, 144, .35); color: var(--teal); background: var(--teal-soft); box-shadow: none; }
+.cashflow-type-switch, .passive-target-segmented { gap: 8px; padding: 0; background: transparent; }
+.cashflow-type-switch button, .passive-target-segmented button { border: 1px solid var(--line); border-radius: 10px; color: var(--ink-muted); background: var(--surface); box-shadow: var(--shadow-sm); }
+.cashflow-type-switch button.is-active, .passive-target-segmented button.is-active { border-color: rgba(14, 116, 144, .35); color: var(--teal); background: var(--teal-soft); box-shadow: none; }
+.row-actions, .stock-mobile-card-actions, .cashflow-item-actions, .loan-card-actions, .passive-target-saved-actions, .scenario-saved-actions { gap: 6px; }
+.icon-button.small { border-color: var(--line); background: var(--surface); }
+
+@media (max-width: 470px) {
+  .segmented-control { gap: 6px; }
+  .segmented-control button { padding-inline: 10px; }
+  .asset-toolbar .segmented-control button { padding-inline: 7px; }
+  .cashflow-type-switch, .passive-target-segmented { gap: 6px; }
+}
+
+/* V1.10.3 trend controls and mobile navigation separation. */
+.portfolio-trend-ranges { gap: 8px; }
+.portfolio-trend-ranges button { border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.portfolio-trend-ranges button.is-active { border-color: rgba(14, 116, 144, .35); background: var(--teal-soft); }
+.portfolio-trend-embedded .portfolio-trend-ranges { gap: 6px; }
+.portfolio-trend-embedded .portfolio-trend-ranges button { border-color: rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .06); }
+.portfolio-trend-embedded .portfolio-trend-ranges button.is-active { border-color: rgba(255, 255, 255, .38); background: rgba(255, 255, 255, .14); }
+.theme-options { gap: 8px; }
+
+@media (max-width: 820px) {
+  .mobile-bottom-nav { gap: 6px; }
+}
+
+@media (max-width: 470px) {
+  .portfolio-trend-ranges { gap: 6px; }
+  .portfolio-trend-embedded .portfolio-trend-ranges { gap: 5px; }
+}
