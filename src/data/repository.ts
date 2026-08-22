@@ -19,6 +19,7 @@ import {
   type DividendTarget,
   type Liability,
   type Loan,
+  type PortfolioSnapshot,
   type RealEstateAsset,
   type Simulation,
   type StockAsset,
@@ -47,6 +48,7 @@ export async function saveAppState(state: AppState): Promise<void> {
     ...state.cashFlowItems.map((item) => putInStore(STORE_NAMES.cashFlowItems, item)),
     ...state.simulations.map((item) => putInStore(STORE_NAMES.simulations, item)),
     ...state.dividendTargets.map((item) => putInStore(STORE_NAMES.dividendTargets, item)),
+    ...state.portfolioSnapshots.map((item) => putInStore(STORE_NAMES.portfolioSnapshots, item)),
     putInStore(STORE_NAMES.settings, state.settings),
   ])
 }
@@ -63,13 +65,14 @@ export async function replaceAppState(state: AppState): Promise<void> {
     [STORE_NAMES.cashFlowItems]: state.cashFlowItems,
     [STORE_NAMES.simulations]: state.simulations,
     [STORE_NAMES.dividendTargets]: state.dividendTargets,
+    [STORE_NAMES.portfolioSnapshots]: state.portfolioSnapshots,
     [STORE_NAMES.settings]: [state.settings],
     [STORE_NAMES.metadata]: [{ id: DEMO_SEEDED_KEY, value: true } satisfies MetadataRecord],
   })
 }
 
 async function readState(): Promise<AppState> {
-  const [stocks, cash, cryptos, realEstate, loans, liabilities, collaterals, cashFlowItems, simulations, dividendTargets, settings] = await Promise.all([
+  const [stocks, cash, cryptos, realEstate, loans, liabilities, collaterals, cashFlowItems, simulations, dividendTargets, portfolioSnapshots, settings] = await Promise.all([
     getAllFromStore<StockAsset>(STORE_NAMES.stocks),
     getAllFromStore<CashAsset>(STORE_NAMES.cash),
     getAllFromStore<CryptoAsset>(STORE_NAMES.cryptos),
@@ -80,6 +83,7 @@ async function readState(): Promise<AppState> {
     getAllFromStore<CashFlowItem>(STORE_NAMES.cashFlowItems),
     getAllFromStore<Simulation>(STORE_NAMES.simulations),
     getAllFromStore<DividendTarget>(STORE_NAMES.dividendTargets),
+    getAllFromStore<PortfolioSnapshot>(STORE_NAMES.portfolioSnapshots),
     getFromStore<AppSettings>(STORE_NAMES.settings, 'app'),
   ])
 
@@ -98,6 +102,7 @@ async function readState(): Promise<AppState> {
     cashFlowItems,
     simulations,
     dividendTargets,
+    portfolioSnapshots,
     settings: normalizedSettings,
   }
 }
@@ -168,6 +173,18 @@ export async function saveDividendTarget(target: DividendTarget): Promise<void> 
 
 export async function deleteDividendTarget(id: string): Promise<void> {
   await deleteFromStore(STORE_NAMES.dividendTargets, id)
+}
+
+export async function savePortfolioSnapshot(snapshot: PortfolioSnapshot): Promise<void> {
+  await putInStore(STORE_NAMES.portfolioSnapshots, snapshot)
+
+  const retentionCutoff = Date.now() - 366 * 24 * 60 * 60 * 1000
+  const snapshots = await getAllFromStore<PortfolioSnapshot>(STORE_NAMES.portfolioSnapshots)
+  await Promise.all(
+    snapshots
+      .filter((item) => Date.parse(item.recordedAt) < retentionCutoff)
+      .map((item) => deleteFromStore(STORE_NAMES.portfolioSnapshots, item.id)),
+  )
 }
 
 export async function saveSimulation(simulation: Simulation): Promise<void> {

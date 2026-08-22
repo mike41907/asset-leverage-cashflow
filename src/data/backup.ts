@@ -10,6 +10,7 @@ import {
   type DividendTarget,
   type Liability,
   type Loan,
+  type PortfolioSnapshot,
   type RealEstateAsset,
   type Simulation,
   type StockAsset,
@@ -93,6 +94,7 @@ export function createBackupData(state: AppState, exportedAt = new Date().toISOS
     cashFlowItems: cloneRecords(state.cashFlowItems),
     simulations: cloneRecords(state.simulations),
     dividendTargets: cloneRecords(state.dividendTargets),
+    portfolioSnapshots: cloneRecords(state.portfolioSnapshots),
     settings: { ...state.settings },
   }
 }
@@ -129,6 +131,7 @@ export function parseBackupData(serialized: string): BackupData {
     cashFlowItems: requireRecordArray(backup.cashFlowItems, 'cashFlowItems') as unknown as CashFlowItem[],
     simulations: requireRecordArray(backup.simulations, 'simulations') as unknown as Simulation[],
     dividendTargets: requireRecordArray(backup.dividendTargets, 'dividendTargets') as unknown as DividendTarget[],
+    portfolioSnapshots: optionalRecordArray(backup.portfolioSnapshots, 'portfolioSnapshots') as unknown as PortfolioSnapshot[],
     settings: validateSettings(backup.settings),
   }
 }
@@ -145,6 +148,7 @@ export function backupToAppState(backup: BackupData): AppState {
     cashFlowItems: cloneRecords(backup.cashFlowItems),
     simulations: cloneRecords(backup.simulations),
     dividendTargets: cloneRecords(backup.dividendTargets),
+    portfolioSnapshots: cloneRecords(backup.portfolioSnapshots),
     settings: { ...backup.settings, schemaVersion: CURRENT_SCHEMA_VERSION },
   }
 }
@@ -167,6 +171,7 @@ export function mergeBackupIntoAppState(current: AppState, backup: BackupData): 
     cashFlowItems: mergeRecords(current.cashFlowItems, backup.cashFlowItems),
     simulations: mergeRecords(current.simulations, backup.simulations),
     dividendTargets: mergeRecords(current.dividendTargets, backup.dividendTargets),
+    portfolioSnapshots: mergeRecords(current.portfolioSnapshots, backup.portfolioSnapshots),
     settings: { ...current.settings, ...backup.settings, schemaVersion: CURRENT_SCHEMA_VERSION },
   }
 }

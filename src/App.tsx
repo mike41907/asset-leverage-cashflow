@@ -3,13 +3,14 @@ import { AppShell } from './components/AppShell'
 import { calculatePortfolioSummary } from './domain/calculations'
 import type { AppState, AppSettings, BackupData, CashAsset, CashFlowItem, Collateral, CryptoAsset, DividendTarget, Liability, Loan, PageKey, RealEstateAsset, Simulation, StockAsset } from './domain/models'
 import { backupToAppState, createBackupData, mergeBackupIntoAppState, serializeBackupData, type BackupImportMode } from './data/backup'
-import { clearDemoData, deleteCash, deleteCashFlowItem, deleteCrypto, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, deleteStock, loadAppState, replaceAppState, saveAppState, saveCash, saveCashFlowItem, saveCrypto, saveDividendTarget, saveLiability, saveLoanBundle, saveRealEstate, saveSettings, saveSimulation, saveStock } from './data/repository'
+import { clearDemoData, deleteCash, deleteCashFlowItem, deleteCrypto, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, deleteStock, loadAppState, replaceAppState, saveAppState, saveCash, saveCashFlowItem, saveCrypto, saveDividendTarget, saveLiability, saveLoanBundle, savePortfolioSnapshot, saveRealEstate, saveSettings, saveSimulation, saveStock } from './data/repository'
 import { DashboardPage } from './pages/DashboardPage'
 import { AssetsPage } from './pages/AssetsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { LoanManagementPage } from './pages/LoanManagementPage'
 import { CashFlowPage } from './pages/CashFlowPage'
 import { fetchUsdTwdExchangeRate } from './services/quoteService'
+import { createPortfolioSnapshot } from './domain/portfolioTrends'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '本機資料操作失敗，請重新整理後再試。'
@@ -35,6 +36,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const exchangeRateSyncKeyRef = useRef('')
+  const portfolioSnapshotSyncKeyRef = useRef('')
 
   useEffect(() => {
     void loadAppState().then(setState).catch((loadError: unknown) => setError(getErrorMessage(loadError)))
@@ -104,6 +106,32 @@ export default function App() {
     state.liabilities,
     state.cryptos,
   ) : null, [state])
+
+  useEffect(() => {
+    if (!state || !summary) return
+
+    const snapshot = createPortfolioSnapshot(summary)
+    const syncKey = `${snapshot.id}:${snapshot.totalAssetsTwd}:${snapshot.totalLiabilitiesTwd}:${snapshot.netWorthTwd}`
+    if (portfolioSnapshotSyncKeyRef.current === syncKey) return
+
+    const existing = state.portfolioSnapshots.find((item) => item.id === snapshot.id)
+    if (existing && existing.totalAssetsTwd === snapshot.totalAssetsTwd && existing.totalLiabilitiesTwd === snapshot.totalLiabilitiesTwd && existing.netWorthTwd === snapshot.netWorthTwd) {
+      portfolioSnapshotSyncKeyRef.current = syncKey
+      return
+    }
+
+    portfolioSnapshotSyncKeyRef.current = syncKey
+    void savePortfolioSnapshot(snapshot).then(() => {
+      setState((current) => {
+        if (!current) return current
+        const portfolioSnapshots = [...current.portfolioSnapshots.filter((item) => item.id !== snapshot.id), snapshot]
+          .sort((left, right) => Date.parse(left.recordedAt) - Date.parse(right.recordedAt))
+        return { ...current, portfolioSnapshots }
+      })
+    }).catch(() => {
+      if (portfolioSnapshotSyncKeyRef.current === syncKey) portfolioSnapshotSyncKeyRef.current = ''
+    })
+  }, [state, summary])
 
   const runAction = async (action: () => Promise<void>, successMessage: string) => {
     try {

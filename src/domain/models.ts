@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 3 as const
+export const CURRENT_SCHEMA_VERSION = 4 as const
 
 export type Currency = 'TWD' | 'USD'
 export type Market = 'TW' | 'US' | 'OTHER'
@@ -188,6 +188,14 @@ export interface DividendTarget {
   updatedAt: string
 }
 
+export interface PortfolioSnapshot {
+  id: string
+  recordedAt: string
+  totalAssetsTwd: number
+  totalLiabilitiesTwd: number
+  netWorthTwd: number
+}
+
 export interface AppSettings {
   id: 'app'
   schemaVersion: typeof CURRENT_SCHEMA_VERSION
@@ -213,6 +221,7 @@ export interface BackupData {
   cashFlowItems: CashFlowItem[]
   simulations: Simulation[]
   dividendTargets: DividendTarget[]
+  portfolioSnapshots: PortfolioSnapshot[]
   settings: AppSettings
 }
 
@@ -227,6 +236,7 @@ export interface AppState {
   cashFlowItems: CashFlowItem[]
   simulations: Simulation[]
   dividendTargets: DividendTarget[]
+  portfolioSnapshots: PortfolioSnapshot[]
   settings: AppSettings
 }
 

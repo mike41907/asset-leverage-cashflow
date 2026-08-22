@@ -1,5 +1,5 @@
 export const DATABASE_NAME = 'asset-leverage-cashflow-app'
-export const DATABASE_VERSION = 3
+export const DATABASE_VERSION = 4
 
 export const STORE_NAMES = {
   stocks: 'stocks',
@@ -12,6 +12,7 @@ export const STORE_NAMES = {
   cashFlowItems: 'cashFlowItems',
   simulations: 'simulations',
   dividendTargets: 'dividendTargets',
+  portfolioSnapshots: 'portfolioSnapshots',
   settings: 'settings',
   metadata: 'metadata',
 } as const

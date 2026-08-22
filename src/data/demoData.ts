@@ -70,6 +70,7 @@ export function createDemoState(): AppState {
     cashFlowItems: [],
     simulations: [],
     dividendTargets: [],
+    portfolioSnapshots: [],
     settings: createDefaultSettings(demoTime),
   }
 }

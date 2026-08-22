@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { deleteDatabase } from './database'
-import type { CashFlowItem, Collateral, CryptoAsset, DividendTarget, Liability, Loan, RealEstateAsset, Simulation } from '../domain/models'
-import { clearDemoData, deleteCashFlowItem, deleteCrypto, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, loadAppState, replaceAppState, saveCashFlowItem, saveCrypto, saveDividendTarget, saveLiability, saveLoanBundle, saveRealEstate, saveSimulation, saveStock } from './repository'
+import type { CashFlowItem, Collateral, CryptoAsset, DividendTarget, Liability, Loan, PortfolioSnapshot, RealEstateAsset, Simulation } from '../domain/models'
+import { clearDemoData, deleteCashFlowItem, deleteCrypto, deleteDividendTarget, deleteLiability, deleteLoanBundle, deleteRealEstate, deleteSimulation, loadAppState, replaceAppState, saveCashFlowItem, saveCrypto, saveDividendTarget, saveLiability, saveLoanBundle, savePortfolioSnapshot, saveRealEstate, saveSimulation, saveStock } from './repository'
 
 describe('local repository', () => {
   beforeEach(async () => {
@@ -201,6 +201,21 @@ describe('local repository', () => {
     await deleteDividendTarget(target.id)
     const deleted = await loadAppState()
     expect(deleted.dividendTargets.some((existing) => existing.id === target.id)).toBe(false)
+  })
+
+  it('persists portfolio history snapshots locally', async () => {
+    await loadAppState()
+    const snapshot: PortfolioSnapshot = {
+      id: 'portfolio-test-snapshot',
+      recordedAt: new Date().toISOString(),
+      totalAssetsTwd: 1_300_000,
+      totalLiabilitiesTwd: 0,
+      netWorthTwd: 1_300_000,
+    }
+
+    await savePortfolioSnapshot(snapshot)
+    const saved = await loadAppState()
+    expect(saved.portfolioSnapshots).toContainEqual(snapshot)
   })
 
   it('persists and deletes a saved simulation scenario locally', async () => {

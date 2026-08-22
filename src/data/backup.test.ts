@@ -8,7 +8,7 @@ describe('backup data', () => {
     const backup = createBackupData(state, '2026-08-21T00:00:00.000Z')
     const parsed = parseBackupData(serializeBackupData(backup))
 
-    expect(parsed.backupVersion).toBe(3)
+    expect(parsed.backupVersion).toBe(4)
     expect(parsed.exportedAt).toBe('2026-08-21T00:00:00.000Z')
     expect(parsed.stocks.map((stock) => stock.symbol)).toEqual(['0050', '00878'])
     expect(parsed.realEstate).toEqual([])
@@ -25,7 +25,7 @@ describe('backup data', () => {
 
     expect(parsed.realEstate).toEqual([])
     expect(parsed.liabilities).toEqual([])
-    expect(parsed.settings.schemaVersion).toBe(3)
+    expect(parsed.settings.schemaVersion).toBe(4)
   })
 
   it('rejects malformed and future-version backups', () => {

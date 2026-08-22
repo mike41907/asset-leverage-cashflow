@@ -22,6 +22,7 @@ import {
 import { formatCurrencyWithSign, formatPercent, formatTwd } from '../shared/formatters'
 import { MetricCard } from '../components/MetricCard'
 import { EmptyState } from '../components/EmptyState'
+import { PortfolioTrendCard } from '../components/PortfolioTrendCard'
 
 interface DashboardPageProps {
   state: AppState
@@ -80,15 +81,6 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
                   <span>房產 {formatTwd(summary.realEstateValueTwd, displayMode)}</span>
                 </div>
               </div>
-              <div className="primary-card-chart" aria-hidden="true">
-                <span style={{ height: '36%' }} />
-                <span style={{ height: '48%' }} />
-                <span style={{ height: '42%' }} />
-                <span style={{ height: '63%' }} />
-                <span style={{ height: '58%' }} />
-                <span style={{ height: '76%' }} />
-                <span style={{ height: '91%' }} />
-              </div>
             </div>
 
             <div className="metric-grid">
@@ -137,6 +129,8 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
               />
             </div>
           </section>
+
+          <PortfolioTrendCard snapshots={state.portfolioSnapshots} displayMode={displayMode} />
 
           <section className="dashboard-grid dashboard-grid-main">
             <article className="card portfolio-mix-card">
