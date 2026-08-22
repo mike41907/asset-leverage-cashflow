@@ -611,3 +611,17 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
   .portfolio-trend-ranges { gap: 6px; }
   .portfolio-trend-embedded .portfolio-trend-ranges { gap: 5px; }
 }
+
+/* V1.10.6 incremental monthly cash flow emphasis. */
+.simulation-cashflow-callout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 12px; }
+.simulation-cashflow-block { min-width: 0; padding: 13px; border-radius: 12px; background: var(--surface-soft); }
+.simulation-cashflow-primary { border: 1px solid rgba(14, 116, 144, .24); background: var(--teal-soft); }
+.simulation-cashflow-block > span, .simulation-cashflow-block > strong, .simulation-cashflow-block > small { display: block; }
+.simulation-cashflow-block > span { color: var(--ink-muted); font-size: 10px; }
+.simulation-cashflow-block > strong { margin-top: 6px; font-size: 21px; letter-spacing: -.05em; }
+.simulation-cashflow-block > small { min-height: 14px; margin-top: 6px; color: var(--ink-muted); font-size: 9px; line-height: 1.45; }
+.simulation-cashflow-block > .simulation-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; }
+
+@media (max-width: 820px) {
+  .simulation-cashflow-callout { grid-template-columns: 1fr; }
+}

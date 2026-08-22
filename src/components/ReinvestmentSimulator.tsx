@@ -9,7 +9,7 @@ import {
   type SimulationSnapshot,
 } from '../domain/calculations'
 import { fetchStockQuote, type StockQuote } from '../services/quoteService'
-import { formatNumber, formatPercent, formatRatio, formatTwd } from '../shared/formatters'
+import { formatCurrencyWithSign, formatNumber, formatPercent, formatRatio, formatTwd } from '../shared/formatters'
 import { CollateralMarketSwitch, type CollateralMarket } from './CollateralMarketSwitch'
 
 interface ReinvestmentSimulatorProps {
@@ -260,7 +260,10 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
               <div><span>新增月利息</span><strong>{formatTwd(simulation.monthlyInterestTwd, displayMode)}</strong><small>年利率 {formatPercent(annualInterestRatePercent)}</small></div>
               <div><span>模擬後現金</span><strong>{formatTwd(simulation.after.cashValueTwd, displayMode)}</strong><small>含未投入借款</small></div>
             </div>
-            <div className="simulation-cashflow-callout"><div><span>模擬後月淨現金流</span><strong className={simulation.monthlyNetCashFlowTwd >= 0 ? 'positive-text' : 'negative-text'}>{formatTwd(simulation.monthlyNetCashFlowTwd, displayMode)}</strong></div><span className={simulation.monthlyNetCashFlowTwd >= summary.monthlyCashFlowTwd ? 'simulation-delta positive-text' : 'simulation-delta negative-text'}>{simulation.monthlyNetCashFlowTwd >= summary.monthlyCashFlowTwd ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}{formatTwd(simulation.monthlyNetCashFlowTwd - summary.monthlyCashFlowTwd, displayMode)} vs 目前</span></div>
+            <div className="simulation-cashflow-callout">
+              <div className="simulation-cashflow-block simulation-cashflow-primary"><span>每月增加現金流</span><strong className={simulation.monthlyNetCashFlowIncreaseTwd >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(simulation.monthlyNetCashFlowIncreaseTwd, displayMode)}</strong><small>新增股息 {formatTwd(simulation.monthlyDividendTwd, displayMode)} − 質押利息 {formatTwd(simulation.monthlyInterestTwd, displayMode)}</small></div>
+              <div className="simulation-cashflow-block"><span>模擬後月淨現金流</span><strong className={simulation.monthlyNetCashFlowTwd >= 0 ? 'positive-text' : 'negative-text'}>{formatTwd(simulation.monthlyNetCashFlowTwd, displayMode)}</strong><small className={simulation.monthlyNetCashFlowTwd >= summary.monthlyCashFlowTwd ? 'simulation-delta positive-text' : 'simulation-delta negative-text'}>{simulation.monthlyNetCashFlowTwd >= summary.monthlyCashFlowTwd ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}{formatTwd(simulation.monthlyNetCashFlowTwd - summary.monthlyCashFlowTwd, displayMode)} vs 目前</small></div>
+            </div>
           </article>
         </section>
       </div>

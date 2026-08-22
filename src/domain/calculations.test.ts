@@ -316,6 +316,7 @@ describe('portfolio calculations', () => {
     expect(result.newInvestmentMarketValueTwd).toBe(2_000_000)
     expect(result.annualDividendTwd).toBe(100_000)
     expect(result.monthlyInterestTwd).toBeCloseTo(5_000, 5)
+    expect(result.monthlyNetCashFlowIncreaseTwd).toBeCloseTo(3_333.333, 2)
     expect(result.after.totalAssetsTwd).toBe(8_000_000)
     expect(result.after.totalLiabilitiesTwd).toBe(2_000_000)
     expect(result.after.netWorthTwd).toBe(result.before.netWorthTwd)
@@ -349,6 +350,7 @@ describe('portfolio calculations', () => {
 
     expect(result.sharesPurchased).toBe(13_588)
     expect(result.annualDividendTwd).toBeCloseTo(result.newInvestmentMarketValueTwd * 0.08, 5)
+    expect(result.monthlyNetCashFlowIncreaseTwd).toBeCloseTo(result.monthlyDividendTwd - result.monthlyInterestTwd, 5)
     expect(result.monthlyDividendTwd - result.monthlyInterestTwd).toBeGreaterThan(1_800)
   })
 

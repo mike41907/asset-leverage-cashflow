@@ -96,6 +96,7 @@ export interface ReinvestmentSimulationResult {
   uninvestedBorrowedCashTwd: number
   annualDividendTwd: number
   monthlyDividendTwd: number
+  monthlyNetCashFlowIncreaseTwd: number
   monthlyNetCashFlowTwd: number
   maintenanceRatioPercent: number
   maintenanceStatus: MaintenanceStatus
@@ -465,6 +466,7 @@ export function calculateReinvestmentSimulation(input: ReinvestmentSimulationInp
     ? calculateAnnualDividendTwd({ ...input.targetStock, shares: sharesPurchased })
     : 0
   const monthlyDividendTwd = annualDividendTwd / 12
+  const monthlyNetCashFlowIncreaseTwd = monthlyDividendTwd - monthlyInterestTwd
   const maintenanceOverview = calculateMaintenanceOverview(
     input.collateralValueTwd,
     loanAmountTwd,
@@ -478,7 +480,7 @@ export function calculateReinvestmentSimulation(input: ReinvestmentSimulationInp
     totalAssetsTwd: before.totalAssetsTwd + loanAmountTwd,
     totalLiabilitiesTwd: before.totalLiabilitiesTwd + loanAmountTwd,
     annualEstimatedDividendTwd: before.annualEstimatedDividendTwd + annualDividendTwd,
-    monthlyCashFlowTwd: before.monthlyCashFlowTwd + monthlyDividendTwd - monthlyInterestTwd,
+    monthlyCashFlowTwd: before.monthlyCashFlowTwd + monthlyNetCashFlowIncreaseTwd,
   })
 
   return {
@@ -492,6 +494,7 @@ export function calculateReinvestmentSimulation(input: ReinvestmentSimulationInp
     uninvestedBorrowedCashTwd,
     annualDividendTwd,
     monthlyDividendTwd,
+    monthlyNetCashFlowIncreaseTwd,
     monthlyNetCashFlowTwd: after.monthlyCashFlowTwd,
     maintenanceRatioPercent: maintenanceOverview.ratioPercent,
     maintenanceStatus: maintenanceOverview.status,
