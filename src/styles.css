@@ -578,6 +578,12 @@ h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 10px; font-size: clamp(28px
 .cashflow-type-switch, .passive-target-segmented { gap: 8px; padding: 0; background: transparent; }
 .cashflow-type-switch button, .passive-target-segmented button { border: 1px solid var(--line); border-radius: 10px; color: var(--ink-muted); background: var(--surface); box-shadow: var(--shadow-sm); }
 .cashflow-type-switch button.is-active, .passive-target-segmented button.is-active { border-color: rgba(14, 116, 144, .35); color: var(--teal); background: var(--teal-soft); box-shadow: none; }
+
+/* V1.10.5 collateral market filters. */
+.collateral-market-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; margin-top: 14px; }
+.collateral-market-switch button { justify-content: space-between; }
+.collateral-market-switch button .collateral-market-label { min-width: 0; height: auto; padding: 0; border-radius: 0; background: transparent; font-size: 11px; }
+.collateral-market-empty { margin-top: 12px; }
 .row-actions, .stock-mobile-card-actions, .cashflow-item-actions, .loan-card-actions, .passive-target-saved-actions, .scenario-saved-actions { gap: 6px; }
 .icon-button.small { border-color: var(--line); background: var(--surface); }
 

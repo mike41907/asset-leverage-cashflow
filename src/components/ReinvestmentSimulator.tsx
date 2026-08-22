@@ -10,6 +10,7 @@ import {
 } from '../domain/calculations'
 import { fetchStockQuote, type StockQuote } from '../services/quoteService'
 import { formatNumber, formatPercent, formatRatio, formatTwd } from '../shared/formatters'
+import { CollateralMarketSwitch, type CollateralMarket } from './CollateralMarketSwitch'
 
 interface ReinvestmentSimulatorProps {
   stocks: StockAsset[]
@@ -24,8 +25,9 @@ interface SimulationCollateralSelection {
 }
 
 function initialCollateralSelections(stocks: StockAsset[]): SimulationCollateralSelection[] {
-  const preferred = stocks.filter((stock) => stock.asCollateral)
-  const source = preferred.length > 0 ? preferred : stocks.slice(0, 1)
+  const taiwanStocks = stocks.filter((stock) => stock.market === 'TW')
+  const preferred = taiwanStocks.filter((stock) => stock.asCollateral)
+  const source = preferred.length > 0 ? preferred : taiwanStocks.slice(0, 1)
   return source.map((stock) => ({ stockAssetId: stock.id, pledgedShares: stock.shares }))
 }
 
@@ -83,6 +85,7 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
   const [repaymentMethod, setRepaymentMethod] = useState<'interest-only' | 'equal-principal' | 'amortized'>('interest-only')
   const [investmentAllocationPercent, setInvestmentAllocationPercent] = useState(100)
   const [targetStockId, setTargetStockId] = useState(initialTargetStockId(stocks))
+  const [collateralMarket, setCollateralMarket] = useState<CollateralMarket>('TW')
   const [collateralSelections, setCollateralSelections] = useState<SimulationCollateralSelection[]>(() => initialCollateralSelections(stocks))
   const [targetQuote, setTargetQuote] = useState<StockQuote | null>(null)
   const [targetQuoteStatus, setTargetQuoteStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
@@ -179,6 +182,7 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
     marginCallRatioPercent: settings.maintenanceMarginCallRatioPercent,
   }), [annualInterestRatePercent, collateralValueTwd, investmentAllocationPercent, loanAmountTwd, settings.maintenanceMarginCallRatioPercent, settings.maintenanceWarningRatioPercent, simulationTargetStock, summary])
   const SimulationStatusIcon = statusIcon(simulation.maintenanceStatus)
+  const collateralStocks = stocks.filter((stock) => stock.market === collateralMarket)
 
   const toggleCollateral = (stock: StockAsset) => {
     setCollateralSelections((current) => current.some((item) => item.stockAssetId === stock.id)
@@ -212,13 +216,16 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
           <div className="simulation-control-group simulation-collateral-group">
             <div className="simulation-control-label"><span>模擬擔保品</span><strong>{formatTwd(collateralValueTwd, displayMode)}</strong></div>
             <p className="simulation-helper">目前已選股票市值會作為這筆新借款的擔保品。</p>
-            {stocks.length === 0 ? <div className="inline-empty">請先到資產管理新增股票。</div> : <div className="simulation-collateral-list">{stocks.map((stock) => {
+            {stocks.length === 0 ? <div className="inline-empty">請先到資產管理新增股票。</div> : <>
+              <CollateralMarketSwitch value={collateralMarket} stocks={stocks} onChange={setCollateralMarket} />
+              {collateralStocks.length === 0 ? <div className="inline-empty collateral-market-empty">目前沒有{collateralMarket === 'TW' ? '台股' : '美股'}持倉可作為擔保品。</div> : <div className="simulation-collateral-list">{collateralStocks.map((stock) => {
               const selection = collateralSelections.find((item) => item.stockAssetId === stock.id)
               return <div className={`simulation-collateral-item ${selection ? 'is-selected' : ''}`} key={stock.id}>
                 <label className="simulation-collateral-check"><input type="checkbox" checked={Boolean(selection)} onChange={() => toggleCollateral(stock)} /><span className="custom-checkbox"><Check size={13} /></span><span><strong>{stock.symbol}</strong><small>{stock.name} · {formatTwd(stock.shares * stock.currentPrice * (stock.exchangeRateToTwd || 1), displayMode)}</small></span></label>
                 {selection && <input className="simulation-shares-input" min="0" max={stock.shares} step="any" type="number" value={selection.pledgedShares || ''} aria-label={`${stock.symbol}質押股數`} onChange={(event) => changeCollateralShares(stock.id, Number(event.target.value))} />}
               </div>
-            })}</div>}
+              })}</div>}
+            </>}
           </div>
 
           <div className="simulation-control-group investment-group">

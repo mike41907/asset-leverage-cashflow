@@ -12,6 +12,7 @@ import {
 } from '../domain/calculations'
 import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
 import { createId } from '../shared/id'
+import { CollateralMarketSwitch, type CollateralMarket } from './CollateralMarketSwitch'
 
 interface ScenarioComparisonProps {
   stocks: StockAsset[]
@@ -62,8 +63,9 @@ function defaultTargetStock(stocks: StockAsset[]): StockAsset | undefined {
 }
 
 function defaultCollateralIds(stocks: StockAsset[]): string[] {
-  const marked = stocks.filter((stock) => stock.asCollateral).map((stock) => stock.id)
-  return marked.length > 0 ? marked : stocks.slice(0, 1).map((stock) => stock.id)
+  const taiwanStocks = stocks.filter((stock) => stock.market === 'TW')
+  const marked = taiwanStocks.filter((stock) => stock.asCollateral).map((stock) => stock.id)
+  return marked.length > 0 ? marked : taiwanStocks.slice(0, 1).map((stock) => stock.id)
 }
 
 function baseSnapshot(summary: PortfolioSummary): SimulationSnapshot {
@@ -229,6 +231,8 @@ function ScenarioMetricChart({ title, caption, rows, value, formatValue, tone = 
 export function ScenarioComparison({ stocks, simulations, settings, summary, displayMode, onSaveSimulation, onDeleteSimulation }: ScenarioComparisonProps) {
   const [editingSimulation, setEditingSimulation] = useState<Simulation | null>(null)
   const [draft, setDraft] = useState<ScenarioDraft>(() => createDraft(null, stocks))
+  const [collateralMarket, setCollateralMarket] = useState<CollateralMarket>('TW')
+  const collateralStocks = stocks.filter((stock) => stock.market === collateralMarket)
 
   const previewSimulation = useMemo(() => buildSimulation(draft, stocks, editingSimulation), [draft, editingSimulation, stocks])
   const previewResult = useMemo(() => compareSimulation(previewSimulation, stocks, summary, settings), [previewSimulation, settings, stocks, summary])
@@ -275,7 +279,12 @@ export function ScenarioComparison({ stocks, simulations, settings, summary, dis
 
   const handleApply = (simulation: Simulation) => {
     setEditingSimulation(simulation)
-    setDraft(createDraft(simulation, stocks))
+    const nextDraft = createDraft(simulation, stocks)
+    setDraft(nextDraft)
+    const firstSelectedStock = nextDraft.collateralStockIds
+      .map((id) => stocks.find((stock) => stock.id === id))
+      .find((stock): stock is StockAsset => Boolean(stock))
+    setCollateralMarket(firstSelectedStock?.market === 'US' ? 'US' : 'TW')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -293,6 +302,7 @@ export function ScenarioComparison({ stocks, simulations, settings, summary, dis
   const resetDraft = () => {
     setEditingSimulation(null)
     setDraft(createDraft(null, stocks))
+    setCollateralMarket('TW')
   }
 
   const toggleCollateral = (stockId: string) => setDraft((current) => ({
@@ -315,7 +325,7 @@ export function ScenarioComparison({ stocks, simulations, settings, summary, dis
           <div className="scenario-control-group"><label className="form-field"><span>方案名稱</span><input required value={draft.name} placeholder="例如 00878 現金流方案" onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label></div>
           <div className="scenario-control-group"><div className="scenario-control-label"><span>借款假設</span><small>這些只用於方案試算，不會建立實際借款</small></div><div className="form-grid form-grid-two scenario-form-grid"><label className="form-field"><span>質押借款<small>NTD</small></span><input min="0" step="10000" type="number" value={draft.loanAmountTwd || ''} placeholder="1,000,000" onChange={(event) => setDraft((current) => ({ ...current, loanAmountTwd: Number(event.target.value) }))} /></label><label className="form-field"><span>年利率<small>百分比</small></span><div className="input-with-suffix"><input min="0" step="0.1" type="number" value={draft.annualInterestRatePercent || ''} placeholder="3" onChange={(event) => setDraft((current) => ({ ...current, annualInterestRatePercent: Number(event.target.value) }))} /><em>%</em></div></label><label className="form-field"><span>借款期間<small>月</small></span><input min="1" step="1" type="number" value={draft.borrowingMonths} onChange={(event) => setDraft((current) => ({ ...current, borrowingMonths: Number(event.target.value) }))} /></label><label className="form-field"><span>還款方式</span><div className="select-wrap"><select value={draft.repaymentMethod} onChange={(event) => setDraft((current) => ({ ...current, repaymentMethod: event.target.value as RepaymentMethod }))}><option value="interest-only">只繳利息</option><option value="equal-principal">本金平均攤還</option><option value="amortized">本息平均攤還</option></select><ChevronDown className="select-chevron" size={16} aria-hidden="true" /></div></label></div></div>
           <div className="scenario-control-group"><div className="scenario-control-label"><span>投入標的</span><small>借款投入比例與股票目前手動價格</small></div><div className="form-grid form-grid-two scenario-form-grid"><label className="form-field"><span>股票／ETF</span><div className="select-wrap"><select value={draft.targetStockId} onChange={(event) => setDraft((current) => ({ ...current, targetStockId: event.target.value }))}><option value="">不投入，保留現金</option>{stocks.map((stock) => <option value={stock.id} key={stock.id}>{stock.symbol} · {stock.name}</option>)}</select><ChevronDown className="select-chevron" size={16} aria-hidden="true" /></div></label><label className="form-field"><span>投入比例<small>借款金額</small></span><div className="input-with-suffix"><input min="0" max="100" step="5" type="number" value={draft.allocationPercent} onChange={(event) => setDraft((current) => ({ ...current, allocationPercent: Math.min(100, Math.max(0, Number(event.target.value))) }))} /><em>%</em></div></label></div>{draft.targetStockId && <div className="scenario-selected-stock">{(() => { const stock = stocks.find((item) => item.id === draft.targetStockId); return stock ? <><span className="scenario-stock-badge">{stock.symbol.slice(0, 2)}</span><div><strong>{stock.symbol} · {stock.name}</strong><small>現價 {formatTwd(stock.currentPrice * (stock.exchangeRateToTwd || 1), displayMode)} · 年配息 {formatNumber(stock.estimatedAnnualDividendPerShare, 2)} 元／股</small></div><Check size={16} /></> : null })()}</div>}</div>
-          <div className="scenario-control-group"><div className="scenario-control-label"><span>擔保品股票</span><small>以整筆持股市值估算方案維持率</small></div><div className="scenario-collateral-list">{stocks.length > 0 ? stocks.map((stock) => <label className={`scenario-collateral-option ${draft.collateralStockIds.includes(stock.id) ? 'is-selected' : ''}`} key={stock.id}><input type="checkbox" checked={draft.collateralStockIds.includes(stock.id)} onChange={() => toggleCollateral(stock.id)} /><span className="custom-checkbox"><Check size={13} /></span><span><strong>{stock.symbol} · {stock.name}</strong><small>{formatTwd(calculateStockMarketValue(stock), displayMode)} · {formatNumber(stock.shares)} 股</small></span></label>) : <div className="inline-empty">先到資產管理新增股票，才能設定方案擔保品。</div>}</div></div>
+          <div className="scenario-control-group"><div className="scenario-control-label"><span>擔保品股票</span><small>以整筆持股市值估算方案維持率</small></div>{stocks.length > 0 ? <><CollateralMarketSwitch value={collateralMarket} stocks={stocks} onChange={setCollateralMarket} /><div className="scenario-collateral-list">{collateralStocks.length > 0 ? collateralStocks.map((stock) => <label className={`scenario-collateral-option ${draft.collateralStockIds.includes(stock.id) ? 'is-selected' : ''}`} key={stock.id}><input type="checkbox" checked={draft.collateralStockIds.includes(stock.id)} onChange={() => toggleCollateral(stock.id)} /><span className="custom-checkbox"><Check size={13} /></span><span><strong>{stock.symbol} · {stock.name}</strong><small>{formatTwd(calculateStockMarketValue(stock), displayMode)} · {formatNumber(stock.shares)} 股</small></span></label>) : <div className="inline-empty collateral-market-empty">目前沒有{collateralMarket === 'TW' ? '台股' : '美股'}持倉可作為方案擔保品。</div>}</div></> : <div className="inline-empty">先到資產管理新增股票，才能設定方案擔保品。</div>}</div>
           <div className="scenario-actions"><button type="submit" className="button button-primary"><Check size={15} />{editingSimulation ? '更新方案' : '保存方案'}</button>{editingSimulation && <button type="button" className="button button-ghost" onClick={resetDraft}><Plus size={15} />新增另一個方案</button>}</div>
           <div className="scenario-note"><Info size={15} /><span>保存的是借款與投資假設，不會寫入實際 Loan，也不會改動你的股票、現金或擔保品資料。</span></div>
         </form>

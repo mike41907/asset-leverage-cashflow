@@ -29,6 +29,7 @@ import { ReinvestmentSimulator } from '../components/ReinvestmentSimulator'
 import { StressTestPanel } from '../components/StressTestPanel'
 import { ScenarioComparison } from '../components/ScenarioComparison'
 import { GeneralLiabilitiesPanel } from '../components/GeneralLiabilitiesPanel'
+import { CollateralMarketSwitch, type CollateralMarket } from '../components/CollateralMarketSwitch'
 
 interface LoanManagementPageProps {
   stocks: StockAsset[]
@@ -173,6 +174,7 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
   const [modalOpen, setModalOpen] = useState(false)
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null)
   const [draft, setDraft] = useState<LoanDraft>(createDefaultLoanDraft)
+  const [collateralMarket, setCollateralMarket] = useState<CollateralMarket>('TW')
 
   const linkedCollateralIds = useMemo(() => new Set(loans.flatMap((loan) => loan.collateralIds)), [loans])
   const activeCollaterals = useMemo(() => collaterals.filter((collateral) => linkedCollateralIds.has(collateral.id)), [collaterals, linkedCollateralIds])
@@ -185,6 +187,7 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
     settings.maintenanceMarginCallRatioPercent,
   )
   const selectedCollateralValue = calculateCollateralSelectionsValueTwd(draft.selectedCollaterals, stocks)
+  const collateralStocks = useMemo(() => stocks.filter((stock) => stock.market === collateralMarket), [collateralMarket, stocks])
   const draftOverview = calculateMaintenanceOverview(
     selectedCollateralValue,
     draft.outstandingBalance,
@@ -197,12 +200,18 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
   const openNewLoan = () => {
     setEditingLoan(null)
     setDraft(createDefaultLoanDraft())
+    setCollateralMarket('TW')
     setModalOpen(true)
   }
 
   const openEditLoan = (loan: Loan) => {
     setEditingLoan(loan)
     setDraft(loanDraftFrom(loan, collaterals))
+    const firstSelectedStock = loan.collateralIds
+      .map((id) => collaterals.find((collateral) => collateral.id === id))
+      .map((collateral) => stocks.find((stock) => stock.id === collateral?.stockAssetId))
+      .find((stock): stock is StockAsset => Boolean(stock))
+    setCollateralMarket(firstSelectedStock?.market === 'US' ? 'US' : 'TW')
     setModalOpen(true)
   }
 
@@ -382,13 +391,16 @@ export function LoanManagementPage({ stocks, loans, liabilities, realEstate, col
           </div>
 
           <div className="section-heading-row collateral-heading"><div><div className="section-kicker">擔保品選擇</div><h3>哪些股票要放進這筆借款？</h3></div><span className="section-caption">可複選</span></div>
-          {stocks.length === 0 ? <div className="inline-empty">請先到資產管理新增股票，才能建立擔保品。</div> : <div className="collateral-options">{stocks.map((stock) => {
+          {stocks.length === 0 ? <div className="inline-empty">請先到資產管理新增股票，才能建立擔保品。</div> : <>
+            <CollateralMarketSwitch value={collateralMarket} stocks={stocks} onChange={setCollateralMarket} />
+            {collateralStocks.length === 0 ? <div className="inline-empty collateral-market-empty">目前沒有{collateralMarket === 'TW' ? '台股' : '美股'}持倉可作為擔保品。</div> : <div className="collateral-options">{collateralStocks.map((stock) => {
             const selection = draft.selectedCollaterals.find((item) => item.stockAssetId === stock.id)
             return <label className={`collateral-option ${selection ? 'selected' : ''}`} key={stock.id}>
               <input type="checkbox" checked={Boolean(selection)} onChange={() => toggleCollateral(stock)} />
               <div className="collateral-option-main"><div className="collateral-option-title"><span><strong>{stock.symbol}</strong><small>{stock.name}</small></span>{selection && <Check size={16} />}</div><div className="collateral-option-meta"><span>可用市值 {formatTwd(calculateCollateralValueTwd({ id: 'preview', name: '', institution: '', stockAssetId: stock.id, pledgedShares: stock.shares, maintenanceFormula: 'market-value-over-loan', warningRatioPercent: draft.warningRatioPercent, marginCallRatioPercent: draft.marginCallRatioPercent, notes: '', createdAt: '', updatedAt: '' }, stocks), displayMode)}</span>{stock.asCollateral && <em>已標記擔保品</em>}</div>{selection && <div className="pledged-input" onClick={(event) => event.stopPropagation()}><span>質押股數</span><input min="0" max={stock.shares} step="any" type="number" value={selection.pledgedShares || ''} onChange={(event) => setDraft((current) => ({ ...current, selectedCollaterals: current.selectedCollaterals.map((item) => item.stockAssetId === stock.id ? { ...item, pledgedShares: Number(event.target.value) } : item) }))} /></div>}</div>
             </label>
-          })}</div>}
+            })}</div>}
+          </>}
 
           <FormField label="備註" wide><textarea value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：額度用途、預計還款來源或更新日期" rows={3} /></FormField>
           <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存借款</button></div>
