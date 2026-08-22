@@ -230,7 +230,7 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
 
             <article className="card dashboard-focus-card">
               <div className="section-heading-row">
-                <div><div className="section-kicker">重點數據</div><h2>今天先看這四項</h2></div>
+                <div><div className="section-kicker">資產快照</div><h2>重要數據</h2></div>
                 <button type="button" className="text-button" onClick={() => onNavigate('assets')}>查看資產 <ChevronRight size={15} /></button>
               </div>
               <div className="dashboard-focus-grid">

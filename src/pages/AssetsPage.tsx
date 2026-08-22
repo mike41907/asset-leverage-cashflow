@@ -8,6 +8,7 @@ import {
   Edit3,
   House,
   Info,
+  LoaderCircle,
   Plus,
   RefreshCw,
   ScanLine,
@@ -295,9 +296,26 @@ function FormField({ label, hint, children, wide = false }: { label: string; hin
 }
 
 function Modal({ title, description, onClose, children }: { title: string; description: string; onClose: () => void; children: React.ReactNode }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const firstFocusable = dialog.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([aria-label="關閉視窗"])')
+    firstFocusable?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseRef.current()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="asset-modal-title">
+      <div ref={dialogRef} className="modal-card" role="dialog" aria-modal="true" aria-labelledby="asset-modal-title">
         <div className="modal-header">
           <div><div className="section-kicker">資產資料</div><h2 id="asset-modal-title">{title}</h2><p>{description}</p></div>
           <button type="button" className="icon-button" aria-label="關閉視窗" onClick={onClose}><X size={19} /></button>
@@ -355,7 +373,9 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
   const [quoteState, setQuoteState] = useState<QuoteState>(initialQuoteState)
   const [dividendDetailStock, setDividendDetailStock] = useState<StockAsset | null>(null)
   const [isRefreshingAll, setIsRefreshingAll] = useState(false)
+  const [refreshProgress, setRefreshProgress] = useState<{ completed: number; total: number } | null>(null)
   const [quoteListNotice, setQuoteListNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null)
+  const [isAssetSaving, setIsAssetSaving] = useState(false)
   const [holdingsImportModalOpen, setHoldingsImportModalOpen] = useState(false)
   const [holdingsImportStatus, setHoldingsImportStatus] = useState<HoldingImportStatus>('error')
   const [holdingsImportMessage, setHoldingsImportMessage] = useState('')
@@ -670,123 +690,147 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
 
   const handleStockSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    let draftToSave = stockDraft
-    let quoteResult: StockQuoteResult | null = null
-    if ((draftToSave.currentPrice <= 0 || needsDividendRefreshForDraft(draftToSave)) && draftToSave.market !== 'OTHER') {
-      quoteResult = await refreshStockQuote()
-      if (quoteResult) {
-        const { quote, exchangeRate } = quoteResult
-        draftToSave = {
-          ...draftToSave,
-          currentPrice: quote.price,
-          currentPriceSource: 'yahoo-public',
-          currentPriceFetchedAt: quote.fetchedAt,
-          currentPriceMarketAt: quote.marketAt ?? undefined,
-          name: preferredStockName(draftToSave.name, quote.name),
-          currency: quote.currency,
-          exchangeRateToTwd: quote.currency === 'TWD' ? 1 : exchangeRate?.rate ?? draftToSave.exchangeRateToTwd,
-          ...quoteDividendFields(quote, draftToSave),
+    if (isAssetSaving) return
+    setIsAssetSaving(true)
+    try {
+      let draftToSave = stockDraft
+      let quoteResult: StockQuoteResult | null = null
+      if ((draftToSave.currentPrice <= 0 || needsDividendRefreshForDraft(draftToSave)) && draftToSave.market !== 'OTHER') {
+        quoteResult = await refreshStockQuote()
+        if (quoteResult) {
+          const { quote, exchangeRate } = quoteResult
+          draftToSave = {
+            ...draftToSave,
+            currentPrice: quote.price,
+            currentPriceSource: 'yahoo-public',
+            currentPriceFetchedAt: quote.fetchedAt,
+            currentPriceMarketAt: quote.marketAt ?? undefined,
+            name: preferredStockName(draftToSave.name, quote.name),
+            currency: quote.currency,
+            exchangeRateToTwd: quote.currency === 'TWD' ? 1 : exchangeRate?.rate ?? draftToSave.exchangeRateToTwd,
+            ...quoteDividendFields(quote, draftToSave),
+          }
         }
       }
-    }
-    if (draftToSave.currentPrice <= 0) {
-      setQuoteState({ status: 'error', message: '請先取得公開行情，或手動輸入目前股價後再儲存。', quote: null })
-      return
-    }
-    if (draftToSave.market === 'US') {
-      try {
-        const exchangeRate = quoteResult?.exchangeRate ?? await fetchUsdTwdExchangeRate()
-        draftToSave = { ...draftToSave, exchangeRateToTwd: exchangeRate.rate }
-      } catch (error) {
-        setQuoteState({ status: 'error', message: error instanceof Error ? error.message : '無法取得美元／台幣匯率，請稍後再試。', quote: null })
+      if (draftToSave.currentPrice <= 0) {
+        setQuoteState({ status: 'error', message: '請先取得公開行情，或手動輸入目前股價後再儲存。', quote: null })
         return
       }
+      if (draftToSave.market === 'US') {
+        try {
+          const exchangeRate = quoteResult?.exchangeRate ?? await fetchUsdTwdExchangeRate()
+          draftToSave = { ...draftToSave, exchangeRateToTwd: exchangeRate.rate }
+        } catch (error) {
+          setQuoteState({ status: 'error', message: error instanceof Error ? error.message : '無法取得美元／台幣匯率，請稍後再試。', quote: null })
+          return
+        }
+      }
+      const time = new Date().toISOString()
+      await onSaveStock({
+        ...draftToSave,
+        id: editingStock?.id ?? createId('stock'),
+        kind: 'stock',
+        createdAt: editingStock?.createdAt ?? time,
+        updatedAt: time,
+        isDemo: false,
+      })
+      setStockModalOpen(false)
+    } finally {
+      setIsAssetSaving(false)
     }
-    const time = new Date().toISOString()
-    await onSaveStock({
-      ...draftToSave,
-      id: editingStock?.id ?? createId('stock'),
-      kind: 'stock',
-      createdAt: editingStock?.createdAt ?? time,
-      updatedAt: time,
-      isDemo: false,
-    })
-    setStockModalOpen(false)
   }
 
   const handleCashSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const time = new Date().toISOString()
-    await onSaveCash({
-      ...cashDraft,
-      id: editingCash?.id ?? createId('cash'),
-      kind: 'cash',
-      createdAt: editingCash?.createdAt ?? time,
-      updatedAt: time,
-      isDemo: false,
-    })
-    setCashModalOpen(false)
+    if (isAssetSaving) return
+    setIsAssetSaving(true)
+    try {
+      const time = new Date().toISOString()
+      await onSaveCash({
+        ...cashDraft,
+        id: editingCash?.id ?? createId('cash'),
+        kind: 'cash',
+        createdAt: editingCash?.createdAt ?? time,
+        updatedAt: time,
+        isDemo: false,
+      })
+      setCashModalOpen(false)
+    } finally {
+      setIsAssetSaving(false)
+    }
   }
 
   const handleCryptoSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (isAssetSaving) return
     if (cryptoDraft.quantity <= 0 || cryptoDraft.currentPrice <= 0) {
       setCryptoFormNotice('請填入大於 0 的持有數量與目前價格。')
       return
     }
 
-    let draftToSave = cryptoDraft
-    if (cryptoDraft.currency === 'TWD') {
-      draftToSave = { ...draftToSave, exchangeRateToTwd: 1 }
-    } else {
-      try {
-        const exchangeRate = await fetchUsdTwdExchangeRate()
-        draftToSave = { ...draftToSave, exchangeRateToTwd: exchangeRate.rate }
-      } catch (error) {
-        if (!Number.isFinite(cryptoDraft.exchangeRateToTwd) || cryptoDraft.exchangeRateToTwd <= 1) {
-          setCryptoFormNotice(error instanceof Error ? error.message : '無法取得美元／台幣匯率，請稍後再試。')
-          return
+    setIsAssetSaving(true)
+    try {
+      let draftToSave = cryptoDraft
+      if (cryptoDraft.currency === 'TWD') {
+        draftToSave = { ...draftToSave, exchangeRateToTwd: 1 }
+      } else {
+        try {
+          const exchangeRate = await fetchUsdTwdExchangeRate()
+          draftToSave = { ...draftToSave, exchangeRateToTwd: exchangeRate.rate }
+        } catch (error) {
+          if (!Number.isFinite(cryptoDraft.exchangeRateToTwd) || cryptoDraft.exchangeRateToTwd <= 1) {
+            setCryptoFormNotice(error instanceof Error ? error.message : '無法取得美元／台幣匯率，請稍後再試。')
+            return
+          }
+          setCryptoFormNotice('目前離線，已保留你輸入的 USD/TWD 匯率。')
         }
-        setCryptoFormNotice('目前離線，已保留你輸入的 USD/TWD 匯率。')
       }
-    }
 
-    const time = new Date().toISOString()
-    await onSaveCrypto({
-      ...draftToSave,
-      id: editingCrypto?.id ?? createId('crypto'),
-      kind: 'crypto',
-      symbol: draftToSave.symbol.trim().toUpperCase(),
-      name: draftToSave.name.trim() || draftToSave.symbol.trim().toUpperCase(),
-      platform: draftToSave.platform.trim(),
-      averageCost: Math.max(0, draftToSave.averageCost),
-      currentPrice: Math.max(0, draftToSave.currentPrice),
-      quantity: Math.max(0, draftToSave.quantity),
-      notes: draftToSave.notes.trim(),
-      createdAt: editingCrypto?.createdAt ?? time,
-      updatedAt: time,
-      isDemo: false,
-    })
-    setCryptoModalOpen(false)
+      const time = new Date().toISOString()
+      await onSaveCrypto({
+        ...draftToSave,
+        id: editingCrypto?.id ?? createId('crypto'),
+        kind: 'crypto',
+        symbol: draftToSave.symbol.trim().toUpperCase(),
+        name: draftToSave.name.trim() || draftToSave.symbol.trim().toUpperCase(),
+        platform: draftToSave.platform.trim(),
+        averageCost: Math.max(0, draftToSave.averageCost),
+        currentPrice: Math.max(0, draftToSave.currentPrice),
+        quantity: Math.max(0, draftToSave.quantity),
+        notes: draftToSave.notes.trim(),
+        createdAt: editingCrypto?.createdAt ?? time,
+        updatedAt: time,
+        isDemo: false,
+      })
+      setCryptoModalOpen(false)
+    } finally {
+      setIsAssetSaving(false)
+    }
   }
 
   const handleRealEstateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const time = new Date().toISOString()
-    await onSaveRealEstate({
-      ...realEstateDraft,
-      id: editingRealEstate?.id ?? createId('real-estate'),
-      kind: 'real-estate',
-      currentValueTwd: Math.max(0, realEstateDraft.currentValueTwd),
-      purchasePriceTwd: Math.max(0, realEstateDraft.purchasePriceTwd),
-      monthlyRentalIncomeTwd: Math.max(0, realEstateDraft.monthlyRentalIncomeTwd),
-      name: realEstateDraft.name.trim(),
-      notes: realEstateDraft.notes.trim(),
-      createdAt: editingRealEstate?.createdAt ?? time,
-      updatedAt: time,
-      isDemo: false,
-    })
-    setRealEstateModalOpen(false)
+    if (isAssetSaving) return
+    setIsAssetSaving(true)
+    try {
+      const time = new Date().toISOString()
+      await onSaveRealEstate({
+        ...realEstateDraft,
+        id: editingRealEstate?.id ?? createId('real-estate'),
+        kind: 'real-estate',
+        currentValueTwd: Math.max(0, realEstateDraft.currentValueTwd),
+        purchasePriceTwd: Math.max(0, realEstateDraft.purchasePriceTwd),
+        monthlyRentalIncomeTwd: Math.max(0, realEstateDraft.monthlyRentalIncomeTwd),
+        name: realEstateDraft.name.trim(),
+        notes: realEstateDraft.notes.trim(),
+        createdAt: editingRealEstate?.createdAt ?? time,
+        updatedAt: time,
+        isDemo: false,
+      })
+      setRealEstateModalOpen(false)
+    } finally {
+      setIsAssetSaving(false)
+    }
   }
 
   const handleRefreshAllStocks = async () => {
@@ -797,17 +841,22 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
     }
 
     setIsRefreshingAll(true)
+    setRefreshProgress({ completed: 0, total: refreshableStocks.length })
     setQuoteListNotice(null)
     try {
       const usdTwdExchangeRatePromise: Promise<UsdTwdExchangeRate | null> = refreshableStocks.some((stock) => stock.market === 'US')
         ? fetchUsdTwdExchangeRate()
         : Promise.resolve(null)
       const results = await Promise.allSettled(refreshableStocks.map(async (stock) => {
-        const [quote, exchangeRate] = await Promise.all([
-          fetchStockQuote(stock.symbol, stock.market),
-          stock.market === 'US' ? usdTwdExchangeRatePromise : Promise.resolve(null),
-        ])
-        return applyQuoteToStock(stock, quote, exchangeRate)
+        try {
+          const [quote, exchangeRate] = await Promise.all([
+            fetchStockQuote(stock.symbol, stock.market),
+            stock.market === 'US' ? usdTwdExchangeRatePromise : Promise.resolve(null),
+          ])
+          return applyQuoteToStock(stock, quote, exchangeRate)
+        } finally {
+          setRefreshProgress((current) => current ? { ...current, completed: Math.min(current.total, current.completed + 1) } : current)
+        }
       }))
       const updatedStocks = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
       const failedStocks = results.flatMap((result, index) => result.status === 'rejected' ? [{ symbol: refreshableStocks[index].symbol, error: getQuoteErrorMessage(result.reason) }] : [])
@@ -822,6 +871,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
       setQuoteListNotice({ kind: 'error', message: getQuoteErrorMessage(error) })
     } finally {
       setIsRefreshingAll(false)
+      setRefreshProgress(null)
     }
   }
 
@@ -871,7 +921,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
       <section className="page-heading asset-page-heading">
         <input ref={holdingsImportInputRef} className="visually-hidden" type="file" accept="image/*" multiple onChange={(event) => void handleHoldingsImportFiles(event)} />
         <div className="heading-actions asset-heading-actions">
-          {activeTab === 'stocks' && <button type="button" className="button button-secondary asset-refresh-button" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? '更新中…' : '更新行情與配息'}</button>}
+          {activeTab === 'stocks' && <button type="button" className="button button-secondary asset-refresh-button" disabled={isRefreshingAll || stocks.length === 0} onClick={() => void handleRefreshAllStocks()}><RefreshCw className={isRefreshingAll ? 'spin-icon' : undefined} size={16} />{isRefreshingAll ? `更新中${refreshProgress ? ` ${refreshProgress.completed}/${refreshProgress.total}` : '…'}` : '更新行情與配息'}</button>}
           {activeTab === 'stocks' && <button type="button" className="button button-secondary" onClick={openHoldingsImportPicker}><ScanLine size={16} />從截圖匯入</button>}
           <button type="button" className="button button-primary" onClick={activeTab === 'stocks' ? openNewStock : activeTab === 'cash' ? openNewCash : activeTab === 'crypto' ? openNewCrypto : openNewRealEstate}><Plus size={17} />新增{activeTab === 'stocks' ? '股票' : activeTab === 'cash' ? '現金' : activeTab === 'crypto' ? '虛擬貨幣' : '房產'}</button>
         </div>
@@ -900,6 +950,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
             <div><div className="section-kicker">股票 / ETF</div><h2>持倉清單</h2></div>
             <div className="asset-dividend-summary"><div><span>持倉市值</span><strong>{formatTwd(stocks.reduce((total, stock) => total + calculateStockMarketValue(stock), 0), displayMode)}</strong></div><div><span>預估年配息</span><strong className="positive-text">{formatTwd(annualEstimatedDividendTwd, displayMode)}</strong></div><div><span>預估月配息</span><strong className="positive-text">{formatTwd(monthlyEstimatedDividendTwd, displayMode)}</strong></div></div>
           </div>
+          {isRefreshingAll && refreshProgress && <div className="quote-refresh-progress" role="status" aria-live="polite"><div className="quote-refresh-progress-heading"><span><LoaderCircle size={14} className="spin-icon" />正在更新行情與配息</span><strong>{refreshProgress.completed}/{refreshProgress.total}</strong></div><div className="quote-refresh-progress-track"><span style={{ width: `${refreshProgress.total > 0 ? (refreshProgress.completed / refreshProgress.total) * 100 : 0}%` }} /></div></div>}
           {quoteListNotice && <div className={`quote-list-notice quote-list-notice-${quoteListNotice.kind}`} role={quoteListNotice.kind === 'error' ? 'alert' : 'status'}><Info size={14} />{quoteListNotice.message}</div>}
           {filteredStocks.length === 0 ? (
             <EmptyState icon={WalletCards} title={search ? '找不到符合的持倉' : '還沒有股票資產'} description={search ? '換一個代號或名稱試試。' : '輸入第一筆股票，首頁就會開始計算總資產。'} actionLabel={search ? undefined : '新增股票'} onAction={search ? undefined : openNewStock} />
@@ -1023,7 +1074,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
           {stockDraft.dividendSource === 'yahoo-public' && <div className="dividend-auto-note" role="status"><Info size={14} /><span>自動配息：{dividendPeriodLabel(stockDraft.dividendPeriod)} {stockDraft.dividendPeriodStart}～{stockDraft.dividendPeriodEnd}，年配息 {dividendCurrency(stockDraft)}{formatNumber(stockDraft.estimatedAnnualDividendPerShare, 2)}，年化殖利率 {formatPercent(stockDraft.estimatedYieldPercent)}。</span></div>}
           <label className="checkbox-field"><input type="checkbox" checked={stockDraft.asCollateral} onChange={(event) => setStockDraft((current) => ({ ...current, asCollateral: event.target.checked }))} /><span className="custom-checkbox"><Check size={13} /></span><span>標記為未來可用的質押擔保品</span></label>
           <FormField label="備註" wide><textarea value={stockDraft.notes} onChange={(event) => setStockDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：價格更新日期、資料來源或自己的備註" rows={3} /></FormField>
-          <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setStockModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存股票</button></div>
+<div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setStockModalOpen(false)} disabled={isAssetSaving}>取消</button><button type="submit" className="button button-primary" disabled={isAssetSaving}>{isAssetSaving ? <LoaderCircle size={16} className="spin-icon" /> : <Check size={16} />}{isAssetSaving ? '儲存中…' : '儲存股票'}</button></div>
         </form>
       </Modal>}
 
@@ -1036,7 +1087,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
             <FormField label="匯率" hint="換算 TWD"><input required min="0.0001" step="any" type="number" disabled={cashDraft.currency === 'TWD'} value={cashDraft.exchangeRateToTwd} onChange={(event) => setCashDraft((current) => ({ ...current, exchangeRateToTwd: Number(event.target.value) }))} /></FormField>
           </div>
           <FormField label="備註" wide><textarea value={cashDraft.notes} onChange={(event) => setCashDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：銀行或帳戶用途" rows={3} /></FormField>
-          <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setCashModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存現金</button></div>
+<div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setCashModalOpen(false)} disabled={isAssetSaving}>取消</button><button type="submit" className="button button-primary" disabled={isAssetSaving}>{isAssetSaving ? <LoaderCircle size={16} className="spin-icon" /> : <Check size={16} />}{isAssetSaving ? '儲存中…' : '儲存現金'}</button></div>
         </form>
       </Modal>}
 
@@ -1054,7 +1105,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
           </div>
           {cryptoFormNotice && <div className="quote-status quote-status-error" role="alert"><Info size={14} /><span>{cryptoFormNotice}</span></div>}
           <FormField label="備註" wide><textarea value={cryptoDraft.notes} onChange={(event) => setCryptoDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：持有地址、估值日期或資料來源" rows={3} /></FormField>
-          <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setCryptoModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存虛擬貨幣</button></div>
+<div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setCryptoModalOpen(false)} disabled={isAssetSaving}>取消</button><button type="submit" className="button button-primary" disabled={isAssetSaving}>{isAssetSaving ? <LoaderCircle size={16} className="spin-icon" /> : <Check size={16} />}{isAssetSaving ? '儲存中…' : '儲存虛擬貨幣'}</button></div>
         </form>
       </Modal>}
 
@@ -1068,7 +1119,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
             <FormField label="每月租金收入" hint="TWD／沒有請填 0" wide><input min="0" step="any" type="number" value={realEstateDraft.monthlyRentalIncomeTwd || ''} onChange={(event) => setRealEstateDraft((current) => ({ ...current, monthlyRentalIncomeTwd: Number(event.target.value) }))} placeholder="0" /></FormField>
           </div>
           <FormField label="備註" wide><textarea value={realEstateDraft.notes} onChange={(event) => setRealEstateDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如 地址區域、估值日期或產權備註" rows={3} /></FormField>
-          <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setRealEstateModalOpen(false)}>取消</button><button type="submit" className="button button-primary"><Check size={16} />儲存房產</button></div>
+<div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setRealEstateModalOpen(false)} disabled={isAssetSaving}>取消</button><button type="submit" className="button button-primary" disabled={isAssetSaving}>{isAssetSaving ? <LoaderCircle size={16} className="spin-icon" /> : <Check size={16} />}{isAssetSaving ? '儲存中…' : '儲存房產'}</button></div>
         </form>
       </Modal>}
     </div>

@@ -3,6 +3,7 @@ import {
   BarChart3,
   CircleDollarSign,
   LayoutDashboard,
+  LoaderCircle,
   Settings2,
   WalletCards,
 } from 'lucide-react'
@@ -12,6 +13,7 @@ import { APP_VERSION_LABEL } from '../shared/appVersion'
 
 interface AppShellProps {
   activePage: PageKey
+  isBusy?: boolean
   onNavigate: (page: PageKey) => void
   children: ReactNode
 }
@@ -42,11 +44,12 @@ function BrandMark() {
   )
 }
 
-export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
+export function AppShell({ activePage, isBusy = false, onNavigate, children }: AppShellProps) {
   const activeLabel = navigationItems.find((item) => item.key === activePage)?.label ?? '首頁總覽'
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isBusy ? 'is-busy' : ''}`} aria-busy={isBusy}>
+      {isBusy && <div className="global-action-indicator" role="status" aria-live="polite" aria-atomic="true"><LoaderCircle size={14} className="spin-icon" /><span>正在儲存變更…</span></div>}
       <aside className="desktop-sidebar">
         <div className="sidebar-brand">
           <BrandMark />

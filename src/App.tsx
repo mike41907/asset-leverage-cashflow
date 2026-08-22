@@ -35,6 +35,8 @@ export default function App() {
   const [activePage, setActivePage] = useState<PageKey>('dashboard')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [isActionPending, setIsActionPending] = useState(false)
+  const pendingActionCountRef = useRef(0)
   const exchangeRateSyncKeyRef = useRef('')
   const portfolioSnapshotSyncKeyRef = useRef('')
 
@@ -134,12 +136,17 @@ export default function App() {
   }, [state, summary])
 
   const runAction = async (action: () => Promise<void>, successMessage: string) => {
+    pendingActionCountRef.current += 1
+    setIsActionPending(true)
     try {
       await action()
       setNotice(successMessage)
       setError(null)
     } catch (actionError) {
       setError(getErrorMessage(actionError))
+    } finally {
+      pendingActionCountRef.current = Math.max(0, pendingActionCountRef.current - 1)
+      setIsActionPending(pendingActionCountRef.current > 0)
     }
   }
 
@@ -302,6 +309,12 @@ export default function App() {
     setState(nextState)
   }, mode === 'replace' ? '備份已覆蓋本機資料。' : '備份已合併到本機資料。')
 
+  const handleNavigate = (nextPage: PageKey) => {
+    setActivePage(nextPage)
+    setError(null)
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
+  }
+
   if (!state) {
     return <div className="loading-screen"><div className="loading-mark"><span /><span /><span /></div><strong>正在開啟你的本機資產資料庫…</strong>{error && <p role="alert">{error}</p>}</div>
   }
@@ -312,5 +325,5 @@ export default function App() {
         : activePage === 'simulation' ? <LoanManagementPage stocks={state.stocks} loans={state.loans} liabilities={state.liabilities} realEstate={state.realEstate} collaterals={state.collaterals} simulations={state.simulations} settings={state.settings} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent, state.realEstate, state.liabilities, state.cryptos)} displayMode={state.settings.numberDisplayMode} onSaveLoan={handleSaveLoan} onDeleteLoan={handleDeleteLoan} onSaveLiability={handleSaveLiability} onDeleteLiability={handleDeleteLiability} onSaveSimulation={handleSaveSimulation} onDeleteSimulation={handleDeleteSimulation} />
           : <CashFlowPage items={state.cashFlowItems} loans={state.loans} liabilities={state.liabilities} stocks={state.stocks} targets={state.dividendTargets} summary={summary ?? calculatePortfolioSummary(state.stocks, state.cash, state.loans, state.cashFlowItems, state.collaterals, state.settings.maintenanceWarningRatioPercent, state.settings.maintenanceMarginCallRatioPercent, state.realEstate, state.liabilities, state.cryptos)} displayMode={state.settings.numberDisplayMode} onSaveItem={handleSaveCashFlowItem} onDeleteItem={handleDeleteCashFlowItem} onSaveTarget={handleSaveDividendTarget} onDeleteTarget={handleDeleteDividendTarget} />
 
-  return <AppShell activePage={activePage} onNavigate={(nextPage) => { setActivePage(nextPage); setError(null) }}><div className="page-content-wrap">{page}</div>{error && <div className="toast toast-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="關閉錯誤訊息">×</button></div>}{notice && <div className="toast toast-success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="關閉成功訊息">×</button></div>}</AppShell>
+  return <AppShell activePage={activePage} isBusy={isActionPending} onNavigate={handleNavigate}><div className="page-content-wrap">{page}</div>{error && <div className="toast toast-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="關閉錯誤訊息">×</button></div>}{notice && <div className="toast toast-success" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="關閉成功訊息">×</button></div>}</AppShell>
 }
