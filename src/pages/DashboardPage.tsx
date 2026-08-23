@@ -23,7 +23,6 @@ import { formatCurrencyWithSign, formatPercent, formatTwd } from '../shared/form
 import { MetricCard } from '../components/MetricCard'
 import { EmptyState } from '../components/EmptyState'
 import { PortfolioTrendCard } from '../components/PortfolioTrendCard'
-import { WealthQuestPanel } from '../components/WealthQuestPanel'
 
 interface DashboardPageProps {
   state: AppState
@@ -131,8 +130,6 @@ export function DashboardPage({ state, summary, onNavigate }: DashboardPageProps
               />
             </div>
           </section>
-
-          <WealthQuestPanel state={state} summary={summary} onNavigate={onNavigate} />
 
           <section className="dashboard-grid dashboard-grid-main">
             <article className="card portfolio-mix-card">
