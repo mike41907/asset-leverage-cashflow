@@ -9,6 +9,7 @@ import {
   House,
   Info,
   LoaderCircle,
+  MoreHorizontal,
   Plus,
   RefreshCw,
   ScanLine,
@@ -323,13 +324,26 @@ function StockMobileCard({ stock, displayMode, onEdit, onDelete, onDividendDetai
     <article className="stock-mobile-card">
       <div className="stock-mobile-card-header">
         <div className="asset-cell"><span className="asset-avatar">{stock.symbol.slice(0, 2)}</span><div><strong>{stock.symbol}</strong><small>{stock.name}</small></div>{stock.isDemo && <span className="demo-badge">Demo</span>}</div>
-        <div className="stock-mobile-card-actions"><button type="button" className="icon-button small" aria-label={`查看 ${stock.symbol} 配息詳情`} title="配息詳情" onClick={onDividendDetail}><CircleDollarSign size={17} /></button><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={onEdit}><Edit3 size={17} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={onDelete}><Trash2 size={17} /></button></div>
+        <details className="stock-mobile-card-menu">
+          <summary className="icon-button small" aria-label={`管理 ${stock.symbol}`} title="更多操作"><MoreHorizontal size={19} /></summary>
+          <div className="stock-mobile-card-menu-popover">
+            <button type="button" className="stock-mobile-card-menu-item" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onDividendDetail() }}><CircleDollarSign size={16} />配息詳情</button>
+            <button type="button" className="stock-mobile-card-menu-item" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onEdit() }}><Edit3 size={16} />編輯持倉</button>
+            <button type="button" className="stock-mobile-card-menu-item stock-mobile-card-menu-danger" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onDelete() }}><Trash2 size={16} />刪除持倉</button>
+          </div>
+        </details>
       </div>
-      <div className="stock-mobile-card-main">
-        <div className="stock-mobile-card-holding"><span>持有 {formatNumber(stock.shares)}</span><small>{stock.averageCost > 0 ? `成本 ${stock.currency === 'USD' ? '$' : 'NT$'}${formatNumber(stock.averageCost, 2)}` : '成本待補'}</small></div>
-        <div className="stock-mobile-card-value"><span>市值</span><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong><small>現價 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</small>{stock.currency === 'USD' && <small className="exchange-rate-note">匯率 {formatNumber(stock.exchangeRateToTwd, 4)} TWD/USD</small>}</div>
+      <div className="stock-mobile-card-overview">
+        <div className="stock-mobile-card-position"><span>持有</span><strong>{formatNumber(stock.shares)}</strong><small>{stock.averageCost > 0 ? `成本 ${stock.currency === 'USD' ? '$' : 'NT$'}${formatNumber(stock.averageCost, 2)}` : '成本待補'}</small></div>
+        <div className="stock-mobile-card-value"><span>市值</span><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong><small>現價 {stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</small></div>
       </div>
-      <div className="stock-mobile-card-footer"><span className={isPositive ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)} <small>{formatPercent(gainPercent)}</small></span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span><span className="stock-mobile-card-dividend">年配息 {dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)} · 殖利率 {formatPercent(stock.estimatedYieldPercent)}<small>{dividendPeriodLabel(stock.dividendPeriod)} · {dividendStatusLabel(stock)}</small></span><span className="stock-mobile-card-collateral">質押擔保 {stock.asCollateral ? '是' : '否'}</span></div>
+      <div className={`stock-mobile-card-performance ${isPositive ? 'positive-text' : 'negative-text'}`}><strong>{formatCurrencyWithSign(gain, displayMode)}</strong><span>{formatPercent(gainPercent)}</span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span></div>
+      <div className="stock-mobile-card-details">
+        <div><span>每股年配息</span><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong></div>
+        <div><span>現價殖利率</span><strong>{formatPercent(stock.estimatedYieldPercent)}</strong></div>
+        <div><span>擔保品</span><strong>{stock.asCollateral ? '是' : '否'}</strong></div>
+        <div><span>配息資料</span><small>{dividendPeriodLabel(stock.dividendPeriod)} · {dividendStatusLabel(stock)}</small></div>
+      </div>
     </article>
   )
 }
@@ -1002,7 +1016,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
                     return <tr key={stock.id}>
                       <td data-label="股票"><div className="asset-cell"><span className="asset-avatar">{stock.symbol.slice(0, 2)}</span><div><strong>{stock.symbol}</strong><small>{stock.name}</small></div>{stock.isDemo && <span className="demo-badge">Demo</span>}</div></td>
                       <td data-label="持有股數">{formatNumber(stock.shares)}</td>
-                      <td data-label="現價"><strong>{stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</strong><small className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</small>{stock.currency === 'USD' && <small className="exchange-rate-note">匯率 {formatNumber(stock.exchangeRateToTwd, 4)} TWD/USD</small>}</td>
+                      <td data-label="現價"><strong>{stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</strong><small className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</small></td>
                       <td data-label="市值"><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong></td>
                       <td data-label="未實現損益">{stock.averageCost > 0 ? <><span className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)}</span><small className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatPercent(gainPercent)}</small></> : <span>待補成本</span>}</td>
                       <td data-label="配息／殖利率"><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small className={`dividend-source ${dividendStatusClass(stock)}`}>{formatPercent(stock.estimatedYieldPercent)} · {dividendPeriodLabel(stock.dividendPeriod)}</small><small className={`dividend-freshness ${dividendStatusClass(stock)}`}>{dividendStatusLabel(stock)}</small></td>
