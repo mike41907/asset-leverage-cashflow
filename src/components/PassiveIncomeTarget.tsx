@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { BarChart3, Check, ChevronDown, CircleDollarSign, Edit3, Plus, ShieldCheck, Target, Trash2 } from 'lucide-react'
 import type { DividendIncomeMode, DividendTarget, StockAsset } from '../domain/models'
 import { calculateDividendTarget, calculatePerShareDividendTarget, type PortfolioSummary } from '../domain/calculations'
-import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
+import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd, formatYieldPercent } from '../shared/formatters'
 import { createId } from '../shared/id'
 
 interface PassiveIncomeTargetProps {
@@ -218,7 +218,7 @@ export function PassiveIncomeTarget({ stocks, summary, targets, displayMode, onS
           <div className="passive-target-control-group">
             <div className="passive-target-control-label"><span>計算標的</span></div>
             {stocks.length > 0 && <label className="form-field"><span>股票／ETF</span><div className="select-wrap"><select value={draft.stockAssetId} onChange={(event) => selectStock(event.target.value)}><option value="">自訂股票／ETF</option>{stocks.map((stock) => <option value={stock.id} key={stock.id}>{stock.symbol} · {stock.name}</option>)}</select><ChevronDown className="select-chevron" size={16} aria-hidden="true" /></div></label>}
-            {draft.stockAssetId && selectedStock ? <div className="passive-target-selected-asset"><span className="passive-target-asset-badge">{selectedStock.symbol.slice(0, 2)}</span><div><strong>{selectedStock.symbol} · {selectedStock.name}</strong><small>目前現價 {formatTwd(stockPriceTwd(selectedStock), displayMode)} · 預估殖利率 {formatPercent(selectedStock.estimatedYieldPercent)}</small></div><Check size={16} /></div> : <div className="form-grid form-grid-two passive-target-form-grid"><label className="form-field"><span>股票代號</span><input value={draft.symbol} placeholder="例如 00878" onChange={(event) => setDraft((current) => ({ ...current, symbol: event.target.value.toUpperCase() }))} /></label><label className="form-field"><span>股票名稱</span><input value={draft.assetName} placeholder="例如 高股息 ETF" onChange={(event) => setDraft((current) => ({ ...current, assetName: event.target.value }))} /></label></div>}
+            {draft.stockAssetId && selectedStock ? <div className="passive-target-selected-asset"><span className="passive-target-asset-badge">{selectedStock.symbol.slice(0, 2)}</span><div><strong>{selectedStock.symbol} · {selectedStock.name}</strong><small>目前現價 {formatTwd(stockPriceTwd(selectedStock), displayMode)} · 預估殖利率 {formatYieldPercent(selectedStock.estimatedYieldPercent)}</small></div><Check size={16} /></div> : <div className="form-grid form-grid-two passive-target-form-grid"><label className="form-field"><span>股票代號</span><input value={draft.symbol} placeholder="例如 00878" onChange={(event) => setDraft((current) => ({ ...current, symbol: event.target.value.toUpperCase() }))} /></label><label className="form-field"><span>股票名稱</span><input value={draft.assetName} placeholder="例如 高股息 ETF" onChange={(event) => setDraft((current) => ({ ...current, assetName: event.target.value }))} /></label></div>}
           </div>
 
           <div className="passive-target-control-group">
@@ -238,11 +238,11 @@ export function PassiveIncomeTarget({ stocks, summary, targets, displayMode, onS
 
         <section className="card passive-target-result-card">
           <div className="section-heading-row passive-target-section-heading"><div><div className="section-kicker">即時試算</div><h2>試算結果</h2></div><span className="passive-target-mode-badge">{targetModeLabel(draft.mode)}</span></div>
-          <div className="passive-target-main-result"><span>預估需要本金</span><strong>{requiredPrincipal !== null ? formatTwd(requiredPrincipal, displayMode) : '等待完整輸入'}</strong><small>{draft.mode === 'yield' ? `以年殖利率 ${formatPercent(draft.annualYieldPercent)} 反推` : `每股年配息 ${formatNumber(perShareCalculation.annualDividendPerShareTwd, 2)} 元 × 需要股數`}</small></div>
+          <div className="passive-target-main-result"><span>預估需要本金</span><strong>{requiredPrincipal !== null ? formatTwd(requiredPrincipal, displayMode) : '等待完整輸入'}</strong><small>{draft.mode === 'yield' ? `以年殖利率 ${formatYieldPercent(draft.annualYieldPercent)} 反推` : `每股年配息 ${formatNumber(perShareCalculation.annualDividendPerShareTwd, 2)} 元 × 需要股數`}</small></div>
           <div className="passive-target-result-grid">
             <div><span>每月毛收入需求</span><strong>{formatTwd(targetCalculation.monthlyGrossTargetTwd, displayMode)}</strong><small>{draft.incomeMode === 'net' ? `淨領 ${formatTwd(draft.monthlyTargetTwd, displayMode)} ＋成本` : '等於每月目標'}</small></div>
             <div><span>年度股息目標</span><strong>{formatTwd(targetCalculation.annualTargetTwd, displayMode)}</strong><small>每月毛收入 × 12</small></div>
-            <div><span>{draft.mode === 'yield' ? '估算年殖利率' : '每股年配息'}</span><strong>{draft.mode === 'yield' ? formatPercent(draft.annualYieldPercent) : `${formatNumber(perShareCalculation.annualDividendPerShareTwd, 2)} 元`}</strong><small>{draft.mode === 'yield' ? '目前假設' : 'Q1＋Q2＋Q3＋Q4'}</small></div>
+            <div><span>{draft.mode === 'yield' ? '估算年殖利率' : '每股年配息'}</span><strong>{draft.mode === 'yield' ? formatYieldPercent(draft.annualYieldPercent) : `${formatNumber(perShareCalculation.annualDividendPerShareTwd, 2)} 元`}</strong><small>{draft.mode === 'yield' ? '目前假設' : 'Q1＋Q2＋Q3＋Q4'}</small></div>
             <div><span>需要股數</span><strong>{perShareCalculation.requiredShares !== null && draft.mode === 'per-share' ? formatNumber(perShareCalculation.requiredShares) : '—'}</strong><small>{draft.mode === 'per-share' ? '向上取整股' : '切換每股配息模式查看'}</small></div>
           </div>
           <div className="passive-target-current-card"><div><span>目前持倉月股息</span><strong className="positive-text">{formatTwd(summary.monthlyEstimatedDividendTwd, displayMode)}</strong></div><div><span>扣除成本後可領</span><strong className={currentComparableMonthlyIncome >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(currentComparableMonthlyIncome, displayMode)}</strong></div><div><span>距離目標</span><strong className={incomeGap >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(incomeGap, displayMode)}</strong></div></div>

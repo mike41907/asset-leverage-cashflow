@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import type { CashAsset, Currency, CryptoAsset, Market, RealEstateAsset, RealEstateType, StockAsset, StockDividendPeriod } from '../domain/models'
 import { calculateAnnualDividendTwd, calculateCashValue, calculateCryptoMarketValue, calculateCryptoUnrealizedGain, calculateCryptoUnrealizedGainPercent, calculateRealEstateValueTwd, calculateStockMarketValue, calculateStockUnrealizedGain, calculateStockUnrealizedGainPercent } from '../domain/calculations'
-import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd } from '../shared/formatters'
+import { formatCurrencyWithSign, formatNumber, formatPercent, formatTwd, formatYieldPercent } from '../shared/formatters'
 import { createId } from '../shared/id'
 import { EmptyState } from '../components/EmptyState'
 import { HoldingsScreenshotImportModal, type HoldingImportStatus } from '../components/HoldingsScreenshotImportModal'
@@ -340,7 +340,7 @@ function StockMobileCard({ stock, displayMode, onEdit, onDelete, onDividendDetai
       <div className={`stock-mobile-card-performance ${isPositive ? 'positive-text' : 'negative-text'}`}><strong>{formatCurrencyWithSign(gain, displayMode)}</strong><span>{formatPercent(gainPercent)}</span><span className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</span></div>
       <div className="stock-mobile-card-details">
         <div><span>每股年配息</span><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong></div>
-        <div><span>現價殖利率</span><strong>{formatPercent(stock.estimatedYieldPercent)}</strong></div>
+        <div><span>現價殖利率</span><strong>{formatYieldPercent(stock.estimatedYieldPercent)}</strong></div>
         <div><span>擔保品</span><strong>{stock.asCollateral ? '是' : '否'}</strong></div>
         <div><span>配息資料</span><small>{dividendPeriodLabel(stock.dividendPeriod)} · {dividendStatusLabel(stock)}</small></div>
       </div>
@@ -393,8 +393,8 @@ function DividendDetailModal({ stock, displayMode, onClose }: { stock: StockAsse
       <div className="dividend-detail-summary"><span className="dividend-detail-icon"><CircleDollarSign size={22} /></span><div><strong>{dividendStatusLabel(stock)}</strong><span>{dividendDataDescription(stock)}</span></div><span className={`dividend-status-pill ${statusClass}`}>{statusLabel}</span></div>
       <div className="dividend-detail-grid">
         <div><span>每股年配息</span><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small>{stock.dividendPeriod ? dividendPeriodLabel(stock.dividendPeriod) : '尚未建立期間'}</small></div>
-        <div><span>現價殖利率</span><strong>{formatPercent(stock.estimatedYieldPercent)}</strong><small>以目前價格計算</small></div>
-        <div><span>成本殖利率</span><strong>{formatPercent(costYield)}</strong><small>{costYield === null ? '需要平均成本與配息' : '以平均成本計算'}</small></div>
+        <div><span>現價殖利率</span><strong>{formatYieldPercent(stock.estimatedYieldPercent)}</strong><small>以目前價格計算</small></div>
+        <div><span>成本殖利率</span><strong>{formatYieldPercent(costYield)}</strong><small>{costYield === null ? '需要平均成本與配息' : '以平均成本計算'}</small></div>
         <div><span>預估年度股息</span><strong>{formatTwd(calculateAnnualDividendTwd(stock), displayMode)}</strong><small>持有 {formatNumber(stock.shares)} 股</small></div>
       </div>
       <div className={`dividend-detail-status ${statusClass}`}><Info size={15} /><div><strong>資料期間：{dividendPeriodRange(stock)}</strong><span>{dividendDataDescription(stock)}</span></div></div>
@@ -1019,7 +1019,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
                       <td data-label="現價"><strong>{stock.currency === 'USD' ? '$' : 'NT$'}{formatNumber(stock.currentPrice, 2)}</strong><small className={`quote-source ${stock.currentPriceSource === 'yahoo-public' ? 'quote-source-live' : ''}`}>{stock.currentPriceSource === 'yahoo-public' && <span className="live-dot" />}{priceSourceLabel(stock)}</small></td>
                       <td data-label="市值"><strong>{formatTwd(calculateStockMarketValue(stock), displayMode)}</strong></td>
                       <td data-label="未實現損益">{stock.averageCost > 0 ? <><span className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatCurrencyWithSign(gain, displayMode)}</span><small className={gain >= 0 ? 'positive-text' : 'negative-text'}>{formatPercent(gainPercent)}</small></> : <span>待補成本</span>}</td>
-                      <td data-label="配息／殖利率"><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small className={`dividend-source ${dividendStatusClass(stock)}`}>{formatPercent(stock.estimatedYieldPercent)} · {dividendPeriodLabel(stock.dividendPeriod)}</small><small className={`dividend-freshness ${dividendStatusClass(stock)}`}>{dividendStatusLabel(stock)}</small></td>
+                      <td data-label="配息／殖利率"><strong>{dividendCurrency(stock)}{formatNumber(stock.estimatedAnnualDividendPerShare, 2)}</strong><small className={`dividend-source ${dividendStatusClass(stock)}`}>{formatYieldPercent(stock.estimatedYieldPercent)} · {dividendPeriodLabel(stock.dividendPeriod)}</small><small className={`dividend-freshness ${dividendStatusClass(stock)}`}>{dividendStatusLabel(stock)}</small></td>
                       <td data-label="質押擔保"><span className={`collateral-tag ${stock.asCollateral ? 'is-on' : ''}`}>{stock.asCollateral ? <><Check size={13} />是</> : '否'}</span></td>
                       <td className="row-actions"><button type="button" className="icon-button small" aria-label={`查看 ${stock.symbol} 配息詳情`} title="配息詳情" onClick={() => setDividendDetailStock(stock)}><CircleDollarSign size={15} /></button><button type="button" className="icon-button small" aria-label={`編輯 ${stock.symbol}`} title="編輯" onClick={() => openEditStock(stock)}><Edit3 size={15} /></button><button type="button" className="icon-button small danger-hover" aria-label={`刪除 ${stock.symbol}`} title="刪除" onClick={() => void handleDeleteStock(stock)}><Trash2 size={15} /></button></td>
                     </tr>
@@ -1122,7 +1122,7 @@ export function AssetsPage({ stocks, cash, cryptos, realEstate, displayMode, onS
             <FormField label="預估殖利率" hint="%"><input min="0" step="any" type="number" value={stockDraft.estimatedYieldPercent || ''} onChange={(event) => updateManualYield(Number(event.target.value))} placeholder="自動計算或手動輸入" /></FormField>
           </div>
           <div className={`quote-status quote-status-${quoteState.status}`} role="status" aria-live="polite"><Info size={14} /><span>{quoteState.message}</span>{quoteState.status === 'success' && <small>{PUBLIC_QUOTE_PROVIDER_LABEL}</small>}</div>
-          {stockDraft.dividendSource === 'yahoo-public' && <div className="dividend-auto-note" role="status"><Info size={14} /><span>自動配息：{dividendPeriodLabel(stockDraft.dividendPeriod)} {stockDraft.dividendPeriodStart}～{stockDraft.dividendPeriodEnd}，年配息 {dividendCurrency(stockDraft)}{formatNumber(stockDraft.estimatedAnnualDividendPerShare, 2)}，年化殖利率 {formatPercent(stockDraft.estimatedYieldPercent)}。</span></div>}
+          {stockDraft.dividendSource === 'yahoo-public' && <div className="dividend-auto-note" role="status"><Info size={14} /><span>自動配息：{dividendPeriodLabel(stockDraft.dividendPeriod)} {stockDraft.dividendPeriodStart}～{stockDraft.dividendPeriodEnd}，年配息 {dividendCurrency(stockDraft)}{formatNumber(stockDraft.estimatedAnnualDividendPerShare, 2)}，年化殖利率 {formatYieldPercent(stockDraft.estimatedYieldPercent)}。</span></div>}
           <label className="checkbox-field"><input type="checkbox" checked={stockDraft.asCollateral} onChange={(event) => setStockDraft((current) => ({ ...current, asCollateral: event.target.checked }))} /><span className="custom-checkbox"><Check size={13} /></span><span>標記為未來可用的質押擔保品</span></label>
           <FormField label="備註" wide><textarea value={stockDraft.notes} onChange={(event) => setStockDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="例如：價格更新日期、資料來源或自己的備註" rows={3} /></FormField>
 <div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setStockModalOpen(false)} disabled={isAssetSaving}>取消</button><button type="submit" className="button button-primary" disabled={isAssetSaving}>{isAssetSaving ? <LoaderCircle size={16} className="spin-icon" /> : <Check size={16} />}{isAssetSaving ? '儲存中…' : '儲存股票'}</button></div>

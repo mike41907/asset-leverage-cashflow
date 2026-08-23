@@ -33,6 +33,10 @@ export function formatPercent(value: number | null, fractionDigits = 1): string 
   return `${new Intl.NumberFormat('zh-TW', { maximumFractionDigits: fractionDigits }).format(value)}%`
 }
 
+export function formatYieldPercent(value: number | null): string {
+  return formatPercent(value, 2)
+}
+
 export function formatRatio(value: number): string {
   if (value === Number.POSITIVE_INFINITY) return '∞'
   if (!Number.isFinite(value)) return '—'

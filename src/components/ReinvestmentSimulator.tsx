@@ -9,7 +9,7 @@ import {
   type SimulationSnapshot,
 } from '../domain/calculations'
 import { fetchStockQuote, type StockQuote } from '../services/quoteService'
-import { formatCurrencyWithSign, formatNumber, formatPercent, formatRatio, formatTwd } from '../shared/formatters'
+import { formatCurrencyWithSign, formatNumber, formatPercent, formatRatio, formatTwd, formatYieldPercent } from '../shared/formatters'
 import { CollateralMarketSwitch, type CollateralMarket } from './CollateralMarketSwitch'
 
 interface ReinvestmentSimulatorProps {
@@ -233,7 +233,7 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
             <label className="form-field"><span>投入標的</span><div className="select-wrap"><select value={targetStockId} onChange={(event) => setTargetStockId(event.target.value)}><option value="">不投入股票，保留現金</option>{stocks.map((stock) => <option value={stock.id} key={stock.id}>{stock.symbol} · {stock.name}</option>)}</select><ChevronDown className="select-chevron" size={16} aria-hidden="true" /></div></label>
             {targetStock && <>
               <label className="form-field"><span>預估年化殖利率<small>股息假設，不含價差</small></span><div className="input-with-suffix"><input min="0" step="0.1" type="number" value={yieldOverridePercent ?? (targetYieldPercent || '')} placeholder="例如 8" onChange={(event) => setYieldOverridePercent(event.target.value === '' ? null : Math.max(0, Number(event.target.value)))} /><em>%</em></div></label>
-              <div className={`simulation-yield-note ${targetQuoteStatus === 'error' ? 'is-error' : ''}`} role="status">{targetQuoteStatus === 'loading' && <LoaderCircle size={13} className="spin-icon" />}{targetQuoteStatus !== 'loading' && <Info size={13} />}{targetQuoteStatus === 'idle' && targetYieldPercent > 0 ? `使用資產目前的年化殖利率 ${formatPercent(targetYieldPercent)}；可在本次試算中覆寫。` : targetQuoteStatus === 'idle' ? '尚無配息資料；若不輸入假設，新增年股息會以 0 計算。' : targetQuoteMessage}</div>
+              <div className={`simulation-yield-note ${targetQuoteStatus === 'error' ? 'is-error' : ''}`} role="status">{targetQuoteStatus === 'loading' && <LoaderCircle size={13} className="spin-icon" />}{targetQuoteStatus !== 'loading' && <Info size={13} />}{targetQuoteStatus === 'idle' && targetYieldPercent > 0 ? `使用資產目前的年化殖利率 ${formatYieldPercent(targetYieldPercent)}；可在本次試算中覆寫。` : targetQuoteStatus === 'idle' ? '尚無配息資料；若不輸入假設，新增年股息會以 0 計算。' : targetQuoteMessage}</div>
             </>}
             <input className="simulation-range" type="range" min="0" max="100" step="5" value={investmentAllocationPercent} aria-label="借款投入比例" onChange={(event) => setInvestmentAllocationPercent(Number(event.target.value))} />
             <div className="range-endpoints"><span>0% 保留現金</span><span>100% 全部投入</span></div>
@@ -255,7 +255,7 @@ export function ReinvestmentSimulator({ stocks, settings, summary, displayMode }
             <div className="simulation-output-grid">
               <div><span>可買股數</span><strong>{formatNumber(simulation.sharesPurchased)}</strong><small>{targetStock?.symbol ?? '未選擇標的'}</small></div>
               <div><span>新增股票市值</span><strong>{formatTwd(simulation.newInvestmentMarketValueTwd, displayMode)}</strong><small>依模擬現價</small></div>
-              <div><span>新增年股息</span><strong>{formatTwd(simulation.annualDividendTwd, displayMode)}</strong><small>{targetStock ? `年化殖利率 ${formatPercent(yieldOverridePercent ?? targetYieldPercent)}` : '預估值'}</small></div>
+              <div><span>新增年股息</span><strong>{formatTwd(simulation.annualDividendTwd, displayMode)}</strong><small>{targetStock ? `年化殖利率 ${formatYieldPercent(yieldOverridePercent ?? targetYieldPercent)}` : '預估值'}</small></div>
               <div><span>新增年利息</span><strong>{formatTwd(simulation.annualInterestTwd, displayMode)}</strong><small>借款成本</small></div>
               <div><span>新增月利息</span><strong>{formatTwd(simulation.monthlyInterestTwd, displayMode)}</strong><small>年利率 {formatPercent(annualInterestRatePercent)}</small></div>
               <div><span>模擬後現金</span><strong>{formatTwd(simulation.after.cashValueTwd, displayMode)}</strong><small>含未投入借款</small></div>
